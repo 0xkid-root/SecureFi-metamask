@@ -86,6 +86,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               <NavLink href="/audit">Audit</NavLink>
               <NavLink href="/reports">Reports</NavLink>
               <NavLink href="/documentor">Documentor</NavLink>
+              <NavLink href="/w3hackHub">W3HackHub</NavLink>
               <NavLink href="/profile">Profile</NavLink>
 
               {isClient ? (
