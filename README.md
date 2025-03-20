@@ -3,7 +3,9 @@
 
 **Next-generation smart contract security powered by Mistral AI, delivering instant, on-chain audit reports for cross-chain deployments.**
 
-![SecureFi Dashboard](https://github.com/user-attachments/assets/f35a7bc8-3a5a-43a3-a931-1cae9facf9bf)
+![SecureFi Dashboard](https://raw.githubusercontent.com/0xkid-root/SecureFi-metamask/main/public/project1.png)
+![SecureFi Dashboard](https://raw.githubusercontent.com/0xkid-root/SecureFi-metamask/main/public/project2.png)
+![SecureFi Dashboard](https://raw.githubusercontent.com/0xkid-root/SecureFi-metamask/main/public/project3.png)
 
 ---
 
