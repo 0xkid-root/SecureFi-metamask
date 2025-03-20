@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import web3HackhubRaw from "./test.json";
 
-// Define the type for each hack object
+// Define types
 interface Hack {
   date: string;
   target: string;
@@ -16,58 +16,64 @@ interface Hack {
   amount_in_usd: number;
 }
 
-// Handle potential import variations and ensure it's an array
-const hacks: Hack[] = Array.isArray(web3HackhubRaw)
-  ? (web3HackhubRaw as Hack[])
-  : ((web3HackhubRaw as { const?: Hack[] }).const as Hack[]) || [];
-
-// Define the type for attack trends
 interface AttackTrend {
   category: string;
   count: number;
   color: string;
 }
 
+// Handle JSON import
+const hacks: Hack[] = Array.isArray(web3HackhubRaw)
+  ? (web3HackhubRaw as Hack[])
+  : ((web3HackhubRaw as { const?: Hack[] }).const as Hack[]) || [];
+
 const Page = () => {
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchCategory, setSearchCategory] = useState("");
+  const [searchChain, setSearchChain] = useState("");
   const postsPerPage = 7;
 
-  // Calculate total amount hacked
-  const totalAmountHacked = hacks.reduce((sum, hack) => sum + hack.amount_in_usd, 0);
-  const totalHacks = hacks.length;
+  // Get unique categories and chains for dropdowns
+  const uniqueCategories = [...new Set(hacks.map(hack => hack.category))];
+  const uniqueChains = [...new Set(hacks.map(hack => hack.chain))];
 
-  // Calculate attack trends by aggregating categories
-  const attackTrendsMap: { [key: string]: number } = hacks.reduce((acc, hack) => {
+  // Filter hacks based on search criteria
+  const filteredHacks = hacks.filter(hack => {
+    const matchesCategory = searchCategory 
+      ? hack.category.toLowerCase().includes(searchCategory.toLowerCase())
+      : true;
+    const matchesChain = searchChain
+      ? hack.chain.toLowerCase().includes(searchChain.toLowerCase())
+      : true;
+    return matchesCategory && matchesChain;
+  });
+
+  // Calculate totals and trends from filtered data
+  const totalAmountHacked = filteredHacks.reduce((sum, hack) => sum + hack.amount_in_usd, 0);
+  const totalHacks = filteredHacks.length;
+
+  const attackTrendsMap: { [key: string]: number } = filteredHacks.reduce((acc, hack) => {
     const category = hack.category || "Unknown";
     acc[category] = (acc[category] || 0) + 1;
     return acc;
   }, {} as { [key: string]: number });
 
-  // Convert to array and sort by count (descending)
   const attackTrends: AttackTrend[] = Object.entries(attackTrendsMap)
     .map(([category, count], index) => ({
       category,
       count,
       color: [
-        "#ff4d4f", // Red
-        "#ff7a45", // Orange
-        "#ffeb3b", // Yellow
-        "#b7eb8f", // Light Green
-        "#36cfc9", // Cyan
-        "#40a9ff", // Blue
-        "#9254de", // Purple
-        "#d3adf7", // Light Purple
-        "#d9d9d9", // Gray
-        "#bfbfbf", // Light Gray
-      ][index % 10], // Cycle through colors
+        "#ff4d4f", "#ff7a45", "#ffeb3b", "#b7eb8f", "#36cfc9",
+        "#40a9ff", "#9254de", "#d3adf7", "#d9d9d9", "#bfbfbf"
+      ][index % 10],
     }))
     .sort((a, b) => b.count - a.count);
 
-  // Calculate pagination
+  // Pagination
   const indexOfLastPost = currentPage * postsPerPage;
   const indexOfFirstPost = indexOfLastPost - postsPerPage;
-  const currentHacks = hacks.slice(indexOfFirstPost, indexOfLastPost);
-  const totalPages = Math.ceil(hacks.length / postsPerPage);
+  const currentHacks = filteredHacks.slice(indexOfFirstPost, indexOfLastPost);
+  const totalPages = Math.ceil(filteredHacks.length / postsPerPage);
 
   const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
 
@@ -81,6 +87,9 @@ const Page = () => {
           of cybersecurity challenges and the lessons learned from each incident
           since 2011.
         </p>
+
+        
+
         <div className="stats">
           <div className="stat-card">
             <h2>${(totalAmountHacked / 1000000000).toFixed(2)} Billion</h2>
@@ -93,7 +102,43 @@ const Page = () => {
         </div>
       </header>
 
-      {/* Attack Trends Section */}
+
+{/* Search Section */}
+<div className="search-section">
+          <select
+            value={searchCategory}
+            onChange={(e) => {
+              setSearchCategory(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="search-select"
+          >
+            <option value="">All Categories</option>
+            {uniqueCategories.map((category, index) => (
+              <option key={index} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={searchChain}
+            onChange={(e) => {
+              setSearchChain(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="search-select"
+          >
+            <option value="">All Chains</option>
+            {uniqueChains.map((chain, index) => (
+              <option key={index} value={chain}>
+                {chain}
+              </option>
+            ))}
+          </select>
+        </div>
+      
+
       <section className="attack-trends">
         <h2>Attack Trends</h2>
         <div className="gradient-bar"></div>
@@ -109,30 +154,33 @@ const Page = () => {
       </section>
 
       <div className="hack-list">
-        {currentHacks.map((hack, index) => (
-          <div key={index} className="hack-item">
-            <div className="hack-header">
-              <h2>{hack.target}</h2>
-              <span className="chain-badge">{hack.chain}</span>
+        {currentHacks.length > 0 ? (
+          currentHacks.map((hack, index) => (
+            <div key={index} className="hack-item">
+              <div className="hack-header">
+                <h2>{hack.target}</h2>
+                <span className="chain-badge">{hack.chain}</span>
+              </div>
+              <div className="hack-details">
+                <p><strong>Date:</strong> {new Date(hack.date).toLocaleDateString()}</p>
+                <p><strong>Amount Lost:</strong> ${hack.amount_in_usd.toLocaleString()} USD</p>
+                <p><strong>Attack Method:</strong> {hack.attacked_method}</p>
+                <p><strong>Category:</strong> {hack.category}</p>
+                <p><strong>Description:</strong> {hack.description}</p>
+                <p>
+                  <strong>Reference:</strong>{" "}
+                  <a href={hack.reference} target="_blank" rel="noopener noreferrer">
+                    Link
+                  </a>
+                </p>
+              </div>
             </div>
-            <div className="hack-details">
-              <p><strong>Date:</strong> {new Date(hack.date).toLocaleDateString()}</p>
-              <p><strong>Amount Lost:</strong> ${hack.amount_in_usd.toLocaleString()} USD</p>
-              <p><strong>Attack Method:</strong> {hack.attacked_method}</p>
-              <p><strong>Category:</strong> {hack.category}</p>
-              <p><strong>Description:</strong> {hack.description}</p>
-              <p>
-                <strong>Reference:</strong>{" "}
-                <a href={hack.reference} target="_blank" rel="noopener noreferrer">
-                  Link
-                </a>
-              </p>
-            </div>
-          </div>
-        ))}
+          ))
+        ) : (
+          <p className="no-results">No hacks found matching your criteria.</p>
+        )}
       </div>
 
-      {/* Pagination */}
       <div className="pagination">
         <button
           onClick={() => paginate(currentPage - 1)}
@@ -161,19 +209,16 @@ const Page = () => {
         </button>
       </div>
 
-      {/* Updated Styling */}
       <style jsx>{`
         .container {
           max-width: 1200px;
           margin: 0 auto;
           padding: 40px 20px;
           font-family: 'Inter', Arial, sans-serif;
-          // background-color: #0a0015;
           color: #ffffff;
           min-height: 100vh;
         }
 
-        /* Header Section */
         .header {
           text-align: center;
           padding: 50px 20px;
@@ -212,6 +257,41 @@ const Page = () => {
           position: relative;
           z-index: 1;
         }
+
+        .search-section {
+          display: flex;
+          gap: 20px;
+          justify-content: center;
+          margin: 20px 0;
+          position: relative;
+          z-index: 1;
+        }
+        .search-select {
+          background: rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(10px);
+          color: #ffffff;
+          padding: 10px 15px;
+          border: 1px solid #4b0082;
+          border-radius: 8px;
+          font-size: 1rem;
+          min-width: 200px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+        .search-select:hover {
+          border-color: #ba55d3;
+          background: rgba(255, 255, 255, 0.1);
+        }
+        .search-select:focus {
+          outline: none;
+          border-color: #9932cc;
+          box-shadow: 0 0 5px rgba(128, 0, 128, 0.5);
+        }
+        .search-select option {
+          background: #2a0a3a;
+          color: #ffffff;
+        }
+
         .stats {
           display: flex;
           justify-content: center;
@@ -244,7 +324,6 @@ const Page = () => {
           margin: 0;
         }
 
-        /* Attack Trends Section */
         .attack-trends {
           background: linear-gradient(145deg, #1a001a, #2a0a3a);
           padding: 30px;
@@ -301,7 +380,6 @@ const Page = () => {
           font-weight: 600;
         }
 
-        /* Hack List Section */
         .hack-list {
           display: flex;
           flex-direction: column;
@@ -344,6 +422,12 @@ const Page = () => {
           font-size: 1rem;
           line-height: 1.5;
         }
+        .no-results {
+          text-align: center;
+          color: #d8bfd8;
+          font-size: 1.2rem;
+          padding: 20px;
+        }
         a {
           color: #9932cc;
           text-decoration: none;
@@ -354,7 +438,6 @@ const Page = () => {
           text-decoration: underline;
         }
 
-        /* Pagination Section */
         .pagination {
           display: flex;
           justify-content: center;
@@ -405,7 +488,6 @@ const Page = () => {
           transform: scale(1.1);
         }
 
-        /* Animations */
         @keyframes fadeIn {
           from {
             opacity: 0;
