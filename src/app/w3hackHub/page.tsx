@@ -157,7 +157,6 @@ const Page = () => {
       y: {
         grid: {
           color: "rgba(216, 191, 216, 0.1)",
-          borderDash: [5, 5], // Recognized with custom typing
         },
         ticks: {
           color: "#d8bfd8",
