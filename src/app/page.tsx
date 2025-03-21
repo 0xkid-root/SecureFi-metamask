@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
@@ -9,7 +9,7 @@ import {
   Star,
   Code,
   Lightning,
-  FileSearch,  
+  FileSearch,
   FileText,
   TestTube,
   Eye,
@@ -22,7 +22,11 @@ import {
 } from 'phosphor-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { OrbitControls, Stars, useTexture } from '@react-three/drei';
+import * as THREE from 'three';
 
+// Chain configuration (extended with more cryptocurrencies)
 const CHAIN_CONFIG = {
   electroneumMainnet: {
     chainId: '0xCB2E',
@@ -30,50 +34,75 @@ const CHAIN_CONFIG = {
     nativeCurrency: {
       name: 'Electroneum',
       symbol: 'ETN',
-      decimals: 18
+      decimals: 18,
     },
     rpcUrls: ['https://rpc.ankr.com/electroneum'],
     blockExplorerUrls: ['https://blockexplorer.electroneum.com'],
-    iconPath: '/chains/electroneum.png'
-  }
+    iconPath: '/chains/electroneum.png',
+  },
+  ethereumMainnet: {
+    chainName: 'Ethereum Mainnet',
+    iconPath: '/chains/ethereum.png',
+  },
+  bitcoinMainnet: {
+    chainName: 'Bitcoin Mainnet',
+    iconPath: '/chains/bitcoin.png',
+  },
+  binanceSmartChain: {
+    chainName: 'Binance Smart Chain',
+    iconPath: '/chains/binance.png',
+  },
+  polygonMainnet: {
+    chainName: 'Polygon Mainnet',
+    iconPath: '/chains/polygon.png',
+  },
+  cardanoMainnet: {
+    chainName: 'Cardano Mainnet',
+    iconPath: '/chains/cardano.png',
+  },
+  solanaMainnet: {
+    chainName: 'Solana Mainnet',
+    iconPath: '/chains/solana.png',
+  },
 };
 
+// Features, recentAudits, and steps remain unchanged
 const features = [
   {
     icon: Shield,
     title: 'AI-Powered Audit',
     description: 'Leverage AI-driven smart contract security analysis for comprehensive risk detection.',
-    category: 'Security'
+    category: 'Security',
   },
   {
     icon: Lightning,
     title: 'Multi-Chain Compatibility',
     description: 'Audit smart contracts across multiple blockchain networks, ensuring wide-ranging security.',
-    category: 'Blockchain'
+    category: 'Blockchain',
   },
   {
     icon: Code,
     title: 'On-Chain Verification',
     description: 'Ensure transparency by storing all audit reports immutably on the blockchain.',
-    category: 'Transparency'
+    category: 'Transparency',
   },
   {
     icon: FileText,
     title: 'Automated Documentation',
     description: 'Generate AI-powered, detailed documentation for Solidity smart contracts effortlessly.',
-    category: 'Efficiency'
+    category: 'Efficiency',
   },
   {
     icon: TestTube,
     title: 'Comprehensive Test Suite',
     description: 'Automate test case generation using multi-framework support for robust contract validation.',
-    category: 'Testing'
+    category: 'Testing',
   },
   {
     icon: Eye,
     title: 'Real-Time Threat Monitoring',
     description: 'Continuously monitor deployed contracts for vulnerabilities and security threats.',
-    category: 'Monitoring'
+    category: 'Monitoring',
   },
 ];
 
@@ -84,7 +113,7 @@ const recentAudits = [
     summary: 'No critical vulnerabilities found. Code follows best practices.',
     auditor: '0xABc...123',
     timestamp: 1703116800,
-    chain: 'electroneumMainnet'
+    chain: 'electroneumMainnet',
   },
   {
     contractHash: '0x456...def',
@@ -92,7 +121,7 @@ const recentAudits = [
     summary: 'Minor optimizations suggested. Overall secure implementation.',
     auditor: '0xDEf...456',
     timestamp: 1703030400,
-    chain: 'electroneumMainnet'
+    chain: 'electroneumMainnet',
   },
   {
     contractHash: '0x789...ghi',
@@ -100,49 +129,125 @@ const recentAudits = [
     summary: 'Excellent implementation with robust security measures.',
     auditor: '0xGHi...789',
     timestamp: 1702944000,
-    chain: 'electroneumMainnet'
-  }
+    chain: 'electroneumMainnet',
+  },
 ];
 
 const steps = [
   {
-    icon: CloudArrowUp, 
+    icon: CloudArrowUp,
     title: 'Submit Your Contract',
-    description: 'Upload or paste your Solidity smart contract code for security auditing.'
+    description: 'Upload or paste your Solidity smart contract code for security auditing.',
   },
   {
-    icon: Brain, 
+    icon: Brain,
     title: 'AI-Powered Analysis',
-    description: 'Our advanced AI scans your code for vulnerabilities and security risks.'
+    description: 'Our advanced AI scans your code for vulnerabilities and security risks.',
   },
   {
-    icon: File, 
+    icon: File,
     title: 'Automated Documentation',
-    description: 'Instantly generate detailed documentation for your smart contract.'
+    description: 'Instantly generate detailed documentation for your smart contract.',
   },
   {
-    icon: Flask, 
+    icon: Flask,
     title: 'Comprehensive Testing',
-    description: 'Automatically create a test suite following industry best practices.'
+    description: 'Automatically create a test suite following industry best practices.',
   },
   {
-    icon: Archive, 
+    icon: Archive,
     title: 'Immutable Audit Report',
-    description: 'Store your audit report permanently on the blockchain for transparency.'
+    description: 'Store your audit report permanently on the blockchain for transparency.',
   },
   {
-    icon: CheckCircle, 
+    icon: CheckCircle,
     title: 'Final Verification',
-    description: 'Get your smart contract verified and ready for secure deployment.'
-  }
+    description: 'Get your smart contract verified and ready for secure deployment.',
+  },
 ];
+
+// Define the cryptocurrencies for the 3D orbiting animation
+const orbitingChains = [
+  { chain: 'bitcoinMainnet', orbitRadius: 5, speed: 0.02, inclination: Math.PI / 4 },
+  { chain: 'binanceSmartChain', orbitRadius: 6, speed: 0.015, inclination: Math.PI / 3 },
+  { chain: 'polygonMainnet', orbitRadius: 7, speed: 0.01, inclination: Math.PI / 6 },
+  { chain: 'electroneumMainnet', orbitRadius: 8, speed: 0.008, inclination: Math.PI / 5 },
+  { chain: 'cardanoMainnet', orbitRadius: 9, speed: 0.006, inclination: Math.PI / 8 },
+  { chain: 'solanaMainnet', orbitRadius: 10, speed: 0.004, inclination: Math.PI / 10 },
+];
+
+// 3D Cryptocurrency Sphere Component
+const CryptoSphere = ({ chain, orbitRadius, speed, inclination }: { chain: string; orbitRadius: number; speed: number; inclination: number }) => {
+  const meshRef = useRef<THREE.Mesh>(null!);
+  const [hovered, setHovered] = React.useState(false);
+  const texture = useTexture(CHAIN_CONFIG[chain as keyof typeof CHAIN_CONFIG].iconPath);
+
+  useFrame((state) => {
+    if (!hovered && meshRef.current) {
+      const time = state.clock.getElapsedTime();
+      meshRef.current.position.x = orbitRadius * Math.cos(time * speed);
+      meshRef.current.position.z = orbitRadius * Math.sin(time * speed);
+      meshRef.current.position.y = orbitRadius * Math.sin(time * speed) * Math.sin(inclination);
+      meshRef.current.rotation.y += 0.01; // Rotate the sphere for a spinning effect
+    }
+  });
+
+  return (
+    <mesh
+      ref={meshRef}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+      scale={hovered ? 1.5 : 1}
+    >
+      <sphereGeometry args={[0.5, 32, 32]} />
+      <meshStandardMaterial map={texture} emissive={hovered ? new THREE.Color(0x800080) : new THREE.Color(0x000000)} emissiveIntensity={hovered ? 1 : 0} />
+    </mesh>
+  );
+};
+
+// 3D Scene Component
+const CryptoScene = () => {
+  const centerMeshRef = useRef<THREE.Mesh>(null!);
+  const texture = useTexture(CHAIN_CONFIG.ethereumMainnet.iconPath);
+
+  useFrame(() => {
+    if (centerMeshRef.current) {
+      centerMeshRef.current.rotation.y += 0.005; // Rotate the central Ethereum sphere
+    }
+  });
+
+  return (
+    <>
+      <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
+      <pointLight position={[0, 0, 0]} intensity={1} color={0x800080} />
+      <ambientLight intensity={0.3} />
+
+      {/* Ethereum at the Center */}
+      <mesh ref={centerMeshRef}>
+        <sphereGeometry args={[1.5, 32, 32]} />
+        <meshStandardMaterial map={texture} emissive={0x800080} emissiveIntensity={0.5} />
+      </mesh>
+
+      {/* Orbiting Cryptocurrencies */}
+      {orbitingChains.map((chain, index) => (
+        <CryptoSphere
+          key={index}
+          chain={chain.chain}
+          orbitRadius={chain.orbitRadius}
+          speed={chain.speed}
+          inclination={chain.inclination}
+        />
+      ))}
+    </>
+  );
+};
 
 export default function Home() {
   useEffect(() => {
     AOS.init({
       duration: 1000,
       once: true,
-      easing: 'ease-out-cubic'
+      easing: 'ease-out-cubic',
     });
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -178,7 +283,7 @@ export default function Home() {
                 <span className="text-purple-400">SECURITY</span>
               </h1>
               <p className="text-purple-300 text-lg mb-8 max-w-xl">
-              Safeguard your smart contracts with advanced AI-powered analysis, detailed documentation, and robust on-chain verification. Engineered for cross-chain excellence across leading networks like Electroneum, Ethereum, Binance Smart Chain, Polygon, and more.
+                Safeguard your smart contracts with advanced AI-powered analysis, detailed documentation, and robust on-chain verification. Engineered for cross-chain excellence across leading networks like Electroneum, Ethereum, Binance Smart Chain, Polygon, and more.
               </p>
               <div className="flex gap-4">
                 <Link href="/audit">
@@ -268,7 +373,7 @@ export default function Home() {
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5" />
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-900/20 rounded-full filter blur-3xl" />
         <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-800/20 rounded-full filter blur-3xl" />
-        
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -342,13 +447,25 @@ export default function Home() {
               </div>
               <div>
                 <h3 className="font-semibold text-xl mb-1 text-white">Electroneum Network Mainnet</h3>
-                <p className="text-purple-300">Native Token: <span className="text-purple-400 font-semibold">ETN</span></p>
+                <p className="text-purple-300">
+                  Native Token: <span className="text-purple-400 font-semibold">ETN</span>
+                </p>
                 <div className="flex items-center mt-3 space-x-4">
-                  <a href="https://blockexplorer.electroneum.com" target="_blank" rel="noopener noreferrer" className="text-sm text-purple-400 hover:text-purple-300 flex items-center space-x-1">
+                  <a
+                    href="https://blockexplorer.electroneum.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-purple-400 hover:text-purple-300 flex items-center space-x-1"
+                  >
                     <FileSearch size={16} />
                     <span>Block Explorer</span>
                   </a>
-                  <a href="https://developer.electroneum.com" target="_blank" rel="noopener noreferrer" className="text-sm text-purple-400 hover:text-purple-300 flex items-center space-x-1">
+                  <a
+                    href="https://developer.electroneum.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-purple-400 hover:text-purple-300 flex items-center space-x-1"
+                  >
                     <Code size={16} />
                     <span>Documentation</span>
                   </a>
@@ -368,9 +485,14 @@ export default function Home() {
               <div className="inline-block mb-3 px-4 py-1 rounded-full bg-purple-900/50 border border-purple-800">
                 <span className="text-purple-400 text-sm font-semibold">Verified Security</span>
               </div>
-              <h2 className="text-3xl font-mono font-bold text-white">Recent <span className="text-purple-400">Audits</span></h2>
+              <h2 className="text-3xl font-mono font-bold text-white">
+                Recent <span className="text-purple-400">Audits</span>
+              </h2>
             </div>
-            <Link href="/reports" className="text-purple-400 hover:text-purple-300 mt-4 md:mt-0 transition-colors duration-200 flex items-center gap-2 border border-purple-800 px-4 py-2 rounded-lg hover:bg-purple-900/50">
+            <Link
+              href="/reports"
+              className="text-purple-400 hover:text-purple-300 mt-4 md:mt-0 transition-colors duration-200 flex items-center gap-2 border border-purple-800 px-4 py-2 rounded-lg hover:bg-purple-900/50"
+            >
               View All Audits <ArrowRight weight="bold" />
             </Link>
           </div>
@@ -395,9 +517,7 @@ export default function Home() {
                       key={index}
                       className="border-t border-purple-900/50 hover:bg-purple-900/20 transition-colors duration-200"
                     >
-                      <td className="py-6 px-4 font-mono text-white">
-                        {audit.contractHash}
-                      </td>
+                      <td className="py-6 px-4 font-mono text-white">{audit.contractHash}</td>
                       <td className="py-6 px-4">
                         <div className="flex items-center gap-2">
                           <div className="relative">
@@ -420,26 +540,25 @@ export default function Home() {
                           {[...Array(5)].map((_, i) => (
                             <Star
                               key={i}
-                              weight={i < audit.stars ? "fill" : "regular"}
-                              className={i < audit.stars ? "text-purple-400" : "text-purple-900"}
+                              weight={i < audit.stars ? 'fill' : 'regular'}
+                              className={i < audit.stars ? 'text-purple-400' : 'text-purple-900'}
                               size={16}
                             />
                           ))}
                         </div>
                       </td>
                       <td className="py-6 px-4 text-purple-300 max-w-md">
-                        <div className="truncate">
-                          {audit.summary}
-                        </div>
+                        <div className="truncate">{audit.summary}</div>
                       </td>
-                      <td className="py-6 px-4 font-mono text-white">
-                        {audit.auditor}
-                      </td>
+                      <td className="py-6 px-4 font-mono text-white">{audit.auditor}</td>
                       <td className="py-6 px-4 text-purple-300">
                         {new Date(audit.timestamp * 1000).toLocaleDateString()}
                       </td>
                       <td className="py-6 px-4">
-                        <Link href={`/reports/${audit.contractHash}`} className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-900/50 hover:bg-purple-900/70 transition-colors duration-200">
+                        <Link
+                          href={`/reports/${audit.contractHash}`}
+                          className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-900/50 hover:bg-purple-900/70 transition-colors duration-200"
+                        >
                           <ArrowRight className="w-4 h-4 text-purple-400" weight="bold" />
                         </Link>
                       </td>
@@ -452,13 +571,46 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Supported Cryptocurrencies Section (Updated with 3D Animation) */}
+      <section className="py-20 relative bg-black overflow-hidden">
+        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-900/20 rounded-full filter blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-800/20 rounded-full filter blur-3xl" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <div className="inline-block mb-3 px-4 py-1 rounded-full bg-purple-900/50 border border-purple-800">
+              <span className="text-purple-400 text-sm font-semibold">Cross-Chain Support</span>
+            </div>
+            <h2 className="text-4xl font-bold font-mono mb-4 text-white">
+              Supported <span className="text-purple-400">Cryptocurrencies</span>
+            </h2>
+            <p className="text-purple-300 text-lg max-w-2xl mx-auto">
+              Audit smart contracts across leading blockchain networks with seamless multi-chain compatibility
+            </p>
+          </motion.div>
+
+          <div className="relative h-[600px] w-full">
+            <Canvas camera={{ position: [0, 0, 15], fov: 60 }}>
+              <CryptoScene />
+              <OrbitControls enablePan={false} enableZoom={true} minDistance={10} maxDistance={30} />
+            </Canvas>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-24 relative bg-black">
         <div className="absolute inset-0 bg-gradient-to-b from-black via-purple-950/20 to-black" />
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5" />
         <div className="absolute left-0 top-1/4 w-1/3 h-1/2 bg-purple-900/20 rounded-full filter blur-3xl" />
         <div className="absolute right-0 bottom-1/4 w-1/3 h-1/2 bg-purple-800/20 rounded-full filter blur-3xl" />
-        
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="relative rounded-2xl overflow-hidden border border-purple-800 shadow-2xl shadow-purple-600/20 backdrop-blur-sm">
             <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 to-purple-800/20" />

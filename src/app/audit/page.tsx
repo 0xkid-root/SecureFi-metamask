@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
@@ -10,18 +10,24 @@ import {
   Warning,
   CheckCircle,
   FileCode,
-  Robot,
   Cube,
   Lock,
   Timer,
   CircleNotch,
   ArrowSquareOut,
   Lightning,
-  Shield
+  Shield,
+  UploadSimple,
+  GithubLogo,
+  DownloadSimple
 } from 'phosphor-react';
 import { connectWallet } from '@/utils/web3';
 import { CONTRACT_ADDRESSES, AUDIT_REGISTRY_ABI } from '@/utils/contracts';
 import { CHAIN_CONFIG } from '@/utils/web3';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import jsPDF from 'jspdf';
+import Image from 'next/image';
 
 // Initialize Mistral client
 const mistralClient = new Mistral({
@@ -71,7 +77,7 @@ interface TransactionState {
 }
 
 // Constants
-const COOLDOWN_TIME = 30;
+const COOLDOWN_TIME = 25;
 const SEVERITY_CONFIGS: Record<string, SeverityConfig> = {
   critical: { 
     color: 'text-red-400', 
@@ -118,6 +124,8 @@ export default function AuditPage() {
     hash: null,
     error: null
   });
+  const [githubUrl, setGithubUrl] = useState('');
+  const [isFetchingGithub, setIsFetchingGithub] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -149,9 +157,8 @@ export default function AuditPage() {
     try {
       const { provider } = await connectWallet();
       const network = await provider.getNetwork();
-      const chainId = '0x' + network.chainId.toString(16);
       for (const [key, config] of Object.entries(CHAIN_CONFIG)) {
-        if (chainId.toLowerCase() === config.chainId.toLowerCase()) {
+        if (('0x' + network.chainId.toString(16)).toLowerCase() === config.chainId.toLowerCase()) {
           setCurrentChain(key as keyof typeof CHAIN_CONFIG);
           return key as keyof typeof CHAIN_CONFIG;
         }
@@ -172,7 +179,6 @@ export default function AuditPage() {
       const { provider, signer } = await connectWallet();
       const contractHash = ethers.keccak256(ethers.toUtf8Bytes(code));
       const network = await provider.getNetwork();
-      const chainId = '0x' + network.chainId.toString(16);
       const detectedChain = await detectCurrentNetwork();
 
       if (!detectedChain || (detectedChain !== 'electroneumMainnet' && detectedChain !== 'electroneumTestnet')) {
@@ -193,6 +199,248 @@ export default function AuditPage() {
         error: (error instanceof Error) ? error.message : 'Failed to register audit'
       });
     }
+  };
+
+  // Feature 1: Handle File Upload for .sol Files
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.sol')) {
+      setError('Please upload a valid Solidity file (.sol extension).');
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      if (!isSolidityCode(text)) {
+        setError('The uploaded file does not contain valid Solidity code.');
+        return;
+      }
+      setCode(text);
+      setError(null);
+    } catch (err) {
+      setError(`Failed to read the file. Please try again. ${err}`);
+    }
+  };
+
+  // Feature 2: Fetch Solidity Code from GitHub Repository
+  const fetchGithubCode = async () => {
+    if (!githubUrl) {
+      setError('Please enter a valid GitHub repository URL.');
+      return;
+    }
+
+    const githubRegex = /^https:\/\/github\.com\/[\w-]+\/[\w-]+(\/blob\/[\w-]+\/[\w-]+\.sol)?$/;
+    if (!githubRegex.test(githubUrl)) {
+      setError('Please enter a valid GitHub repository URL (e.g., https://github.com/user/repo or https://github.com/user/repo/blob/branch/file.sol).');
+      return;
+    }
+
+    setIsFetchingGithub(true);
+    setError(null);
+
+    try {
+      let rawUrl = githubUrl
+        .replace('github.com', 'raw.githubusercontent.com')
+        .replace('/blob/', '/');
+
+      if (!rawUrl.endsWith('.sol')) {
+        rawUrl += '/main/contracts/Contract.sol';
+      }
+
+      const response = await fetch(rawUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch the file from GitHub.');
+      }
+
+      const text = await response.text();
+      if (!isSolidityCode(text)) {
+        throw new Error('The fetched file does not contain valid Solidity code.');
+      }
+
+      setCode(text);
+      setGithubUrl('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch code from GitHub.');
+    } finally {
+      setIsFetchingGithub(false);
+    }
+  };
+
+  // Feature 3: Export Audit Report as PDF
+  const exportToPDF = () => {
+    if (!result) {
+      console.error('No audit result available to export.');
+      return;
+    }
+
+    // Log the result object to debug
+    console.log('Exporting PDF with result:', result);
+
+    const doc = new jsPDF();
+    let yOffset = 20;
+    const pageHeight = doc.internal.pageSize.getHeight(); // Get the height of the page (A4: ~297mm)
+    const margin = 20; // Margin for the page
+    const maxHeight = pageHeight - margin; // Maximum height before adding a new page
+
+    // Set a dark background for the entire PDF
+    doc.setFillColor(40, 40, 40); // Dark gray background (RGB)
+    doc.rect(0, 0, doc.internal.pageSize.getWidth(), doc.internal.pageSize.getHeight(), 'F');
+
+    // Helper function to check if we need a new page
+    const checkPageOverflow = (additionalHeight: number) => {
+      if (yOffset + additionalHeight > maxHeight) {
+        doc.addPage();
+        // Reset the background for the new page
+        doc.setFillColor(40, 40, 40);
+        doc.rect(0, 0, doc.internal.pageSize.getWidth(), doc.internal.pageSize.getHeight(), 'F');
+        yOffset = margin; // Reset yOffset for the new page
+      }
+      console.log(`yOffset after check: ${yOffset}, additionalHeight: ${additionalHeight}`);
+    };
+
+    // Title
+    doc.setFontSize(20);
+    doc.setTextColor(128, 0, 128); // Purple color (RGB)
+    doc.text('Smart Contract Audit Report', margin, yOffset);
+    yOffset += 10;
+    console.log('Added Title, yOffset:', yOffset);
+
+    // Security Score
+    checkPageOverflow(10);
+    doc.setFontSize(14);
+    doc.setTextColor(255, 255, 255); // White color (RGB)
+    doc.text(`Security Score: ${result.stars}/5`, margin, yOffset);
+    yOffset += 10;
+    console.log('Added Security Score, yOffset:', yOffset);
+
+    // Summary
+    checkPageOverflow(12);
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255); // White color
+    doc.text('Summary:', margin, yOffset);
+    yOffset += 6;
+    const summaryLines = doc.splitTextToSize(result.summary || 'No summary available.', 170);
+    checkPageOverflow(summaryLines.length * 6);
+    doc.text(summaryLines, margin, yOffset);
+    yOffset += summaryLines.length * 6 + 5;
+    console.log('Added Summary, yOffset:', yOffset);
+
+    // Vulnerabilities
+    checkPageOverflow(12);
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255); // White color
+    doc.text('Vulnerabilities:', margin, yOffset);
+    yOffset += 6;
+    console.log('Added Vulnerabilities header, yOffset:', yOffset);
+
+    let hasVulnerabilities = false;
+    Object.entries(result.vulnerabilities).forEach(([severity, issues]) => {
+      const config = SEVERITY_CONFIGS[severity];
+      // Set color based on severity (convert Tailwind color to RGB)
+      let severityColor: [number, number, number];
+      switch (severity) {
+        case 'critical':
+          severityColor = [255, 0, 0]; // Red
+          break;
+        case 'high':
+          severityColor = [255, 165, 0]; // Orange
+          break;
+        case 'medium':
+          severityColor = [255, 255, 0]; // Yellow
+          break;
+        case 'low':
+          severityColor = [128, 0, 128]; // Purple
+          break;
+        default:
+          severityColor = [255, 255, 255]; // White
+      }
+
+      checkPageOverflow(6);
+      doc.setTextColor(...severityColor);
+      doc.text(`${config.label}:`, margin, yOffset);
+      yOffset += 6;
+      console.log(`Added ${config.label} header, yOffset:`, yOffset);
+
+      if (issues.length > 0) {
+        hasVulnerabilities = true;
+        issues.forEach((issue, index) => {
+          const issueLines = doc.splitTextToSize(`- ${issue}`, 160);
+          checkPageOverflow(issueLines.length * 6);
+          doc.setTextColor(255, 255, 255); // White for issue text
+          doc.text(issueLines, margin + 5, yOffset);
+          yOffset += issueLines.length * 6;
+          console.log(`Added issue ${index + 1} for ${severity}: "${issue}", yOffset:`, yOffset);
+        });
+      } else {
+        checkPageOverflow(6);
+        doc.setTextColor(255, 255, 255); // White for "No issues" text
+        doc.text(`- No ${severity} risk vulnerabilities found.`, margin + 5, yOffset);
+        yOffset += 6;
+        console.log(`Added "No ${severity} risk" message, yOffset:`, yOffset);
+      }
+      yOffset += 2;
+    });
+
+    if (!hasVulnerabilities) {
+      checkPageOverflow(6);
+      doc.setTextColor(255, 255, 255);
+      doc.text('- No vulnerabilities found.', margin + 5, yOffset);
+      yOffset += 6;
+      console.log('Added "No vulnerabilities found" message, yOffset:', yOffset);
+    }
+
+    // Recommendations
+    checkPageOverflow(12);
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255); // White color
+    doc.text('Recommendations:', margin, yOffset);
+    yOffset += 6;
+    console.log('Added Recommendations header, yOffset:', yOffset);
+
+    if (result.recommendations && result.recommendations.length > 0) {
+      result.recommendations.forEach((rec, index) => {
+        const recLines = doc.splitTextToSize(`- ${rec}`, 160);
+        checkPageOverflow(recLines.length * 6);
+        doc.text(recLines, margin + 5, yOffset);
+        yOffset += recLines.length * 6;
+        console.log(`Added recommendation ${index + 1}: "${rec}", yOffset:`, yOffset);
+      });
+    } else {
+      checkPageOverflow(6);
+      doc.text('- No recommendations provided.', margin + 5, yOffset);
+      yOffset += 6;
+      console.log('Added "No recommendations" message, yOffset:', yOffset);
+    }
+
+    // Gas Optimizations
+    checkPageOverflow(12);
+    yOffset += 5;
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255); // White color
+    doc.text('Gas Optimizations:', margin, yOffset);
+    yOffset += 6;
+    console.log('Added Gas Optimizations header, yOffset:', yOffset);
+
+    if (result.gasOptimizations && result.gasOptimizations.length > 0) {
+      result.gasOptimizations.forEach((opt, index) => {
+        const optLines = doc.splitTextToSize(`- ${opt}`, 160);
+        checkPageOverflow(optLines.length * 6);
+        doc.text(optLines, margin + 5, yOffset);
+        yOffset += optLines.length * 6;
+        console.log(`Added gas optimization ${index + 1}: "${opt}", yOffset:`, yOffset);
+      });
+    } else {
+      checkPageOverflow(6);
+      doc.text('- No gas optimizations provided.', margin + 5, yOffset);
+      yOffset += 6;
+      console.log('Added "No gas optimizations" message, yOffset:', yOffset);
+    }
+
+    // Save the PDF
+    console.log('Saving PDF...');
+    doc.save('audit-report.pdf');
   };
 
   const analyzeContract = async () => {
@@ -313,19 +561,51 @@ export default function AuditPage() {
               style={{ '--mouse-x': `${mousePosition.x}px`, '--mouse-y': `${mousePosition.y}px` } as React.CSSProperties}
             >
               <div className="absolute inset-0">
-                <div className="p-4 border-b border-purple-900 flex items-center gap-2">
-                  <FileCode className="text-purple-400" size={20} weight="duotone" />
-                  <span className="font-mono text-white">Solidity Code</span>
+                <div className="p-4 border-b border-purple-900 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileCode className="text-purple-400" size={20} weight="duotone" />
+                    <span className="font-mono text-white">Solidity Code</span>
+                  </div>
+                  <label className="cursor-pointer flex items-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 px-3 py-1 rounded-lg border border-purple-600/30 transition-colors duration-200">
+                    <UploadSimple className="text-purple-400" size={20} weight="bold" />
+                    <span className="text-purple-300 text-sm">Upload .sol</span>
+                    <input
+                      type="file"
+                      accept=".sol"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      disabled={isAnalyzing}
+                    />
+                  </label>
                 </div>
                 <div className="h-[calc(100%-60px)] custom-scrollbar">
-                  <textarea
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    placeholder="// Paste your Solidity code here..."
-                    className="w-full h-full p-4 bg-transparent font-mono text-sm focus:outline-none resize-none code-editor text-white"
-                    spellCheck="false"
-                    disabled={isAnalyzing}
-                  />
+                  {code ? (
+                    <SyntaxHighlighter
+                      language="solidity"
+                      style={vscDarkPlus}
+                      customStyle={{
+                        margin: 0,
+                        padding: '1rem',
+                        height: '100%',
+                        background: 'transparent',
+                        fontSize: '0.875rem',
+                        lineHeight: '1.5',
+                        overflow: 'auto'
+                      }}
+                      wrapLines={true}
+                    >
+                      {code}
+                    </SyntaxHighlighter>
+                  ) : (
+                    <textarea
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      placeholder="// Paste your Solidity code here..."
+                      className="w-full h-full p-4 bg-transparent font-mono text-sm focus:outline-none resize-none code-editor text-white"
+                      spellCheck="false"
+                      disabled={isAnalyzing}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -349,6 +629,41 @@ export default function AuditPage() {
                   </motion.div>
                 )}
               </AnimatePresence>
+            </div>
+
+            <div className="mt-4 flex items-center gap-3">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={githubUrl}
+                  onChange={(e) => setGithubUrl(e.target.value)}
+                  placeholder="Enter GitHub URL (e.g., https://github.com/user/repo)"
+                  className="w-full py-2 px-4 bg-purple-950/30 border border-purple-900 rounded-lg text-white placeholder-purple-400/50 focus:outline-none focus:border-purple-600/50 font-mono text-sm"
+                  disabled={isAnalyzing || isFetchingGithub}
+                />
+                <GithubLogo className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-400" size={20} weight="fill" />
+              </div>
+              <button
+                onClick={fetchGithubCode}
+                disabled={isAnalyzing || isFetchingGithub || !githubUrl}
+                className={`py-2 px-4 rounded-lg font-bold flex items-center gap-2 transition-all duration-200 ${
+                  isAnalyzing || isFetchingGithub || !githubUrl
+                    ? 'bg-purple-950 text-purple-400 cursor-not-allowed'
+                    : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20'
+                }`}
+              >
+                {isFetchingGithub ? (
+                  <>
+                    <CircleNotch className="animate-spin" size={20} weight="bold" />
+                    Fetching...
+                  </>
+                ) : (
+                  <>
+                    <GithubLogo size={20} weight="fill" />
+                    Fetch from GitHub
+                  </>
+                )}
+              </button>
             </div>
 
             <button
@@ -386,16 +701,25 @@ export default function AuditPage() {
                     <Shield className="text-purple-400" size={20} weight="duotone" />
                     <span className="font-mono text-white">Analysis Results</span>
                   </div>
-                  {txState.hash && currentChain && (
-                    <a 
-                      href={`${CHAIN_CONFIG[currentChain].blockExplorerUrls[0]}/tx/${txState.hash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={exportToPDF}
                       className="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1 transition-colors duration-200"
                     >
-                      View Transaction <ArrowSquareOut size={16} weight="bold" />
-                    </a>
-                  )}
+                      <DownloadSimple size={16} weight="bold" />
+                      Export as PDF
+                    </button>
+                    {txState.hash && currentChain && (
+                      <a 
+                        href={`${CHAIN_CONFIG[currentChain].blockExplorerUrls[0]}/tx/${txState.hash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1 transition-colors duration-200"
+                      >
+                        View Transaction <ArrowSquareOut size={16} weight="bold" />
+                      </a>
+                    )}
+                  </div>
                 </div>
 
                 <div className={`h-[calc(100%-60px)] custom-scrollbar overflow-auto p-6 transition-all duration-300 ${isReviewBlurred ? 'blur-md select-none' : ''}`}>
@@ -451,8 +775,8 @@ export default function AuditPage() {
                     <h3 className="font-mono text-sm text-purple-400 mb-2">RECOMMENDATIONS</h3>
                     <div className="bg-purple-600/10 border border-purple-600/30 rounded-lg p-4">
                       <ul className="space-y-2">
-                        {result.recommendations.map((rec, index) => (
-                          <li key={index} className="flex items-start gap-2 text-sm">
+                        {result.recommendations.map((rec, _) => (
+                          <li key={rec} className="flex items-start gap-2 text-sm">
                             <CheckCircle className="text-purple-400 mt-1 flex-shrink-0" size={16} weight="fill" />
                             <span className="text-purple-300">{rec}</span>
                           </li>
@@ -466,8 +790,8 @@ export default function AuditPage() {
                     <h3 className="font-mono text-sm text-purple-400 mb-2">GAS OPTIMIZATIONS</h3>
                     <div className="bg-purple-600/10 border border-purple-600/30 rounded-lg p-4">
                       <ul className="space-y-2">
-                        {result.gasOptimizations.map((opt, index) => (
-                          <li key={index} className="flex items-start gap-2 text-sm">
+                        {result.gasOptimizations.map((opt, _) => (
+                          <li key={opt} className="flex items-start gap-2 text-sm">
                             <Cube className="text-purple-400 mt-1 flex-shrink-0" size={16} weight="fill" />
                             <span className="text-purple-300">{opt}</span>
                           </li>
@@ -505,10 +829,12 @@ export default function AuditPage() {
                       </button>
                       {currentChain && (
                         <div className="mt-4 text-purple-400 text-sm flex items-center justify-center gap-2">
-                          <img 
+                          <Image 
                             src={CHAIN_CONFIG[currentChain].iconPath}
                             alt={CHAIN_CONFIG[currentChain].chainName}
-                            className="w-4 h-4 rounded-full"
+                            width={16}
+                            height={16}
+                            className="rounded-full"
                           />
                           Will register on {CHAIN_CONFIG[currentChain].chainName}
                         </div>
@@ -538,7 +864,7 @@ export default function AuditPage() {
                   </div>
                   <h3 className="text-xl font-mono mb-4 text-white">Smart Contract Analyzer</h3>
                   <p className="text-purple-300 mb-6 max-w-md mx-auto">
-                    Paste your Solidity code on the left panel and click 'Analyze Contract' to get a comprehensive security assessment
+                    Paste your Solidity code, upload a .sol file, or fetch from GitHub to get a comprehensive security assessment
                   </p>
                   <div className="flex flex-wrap justify-center gap-2">
                     <span className="text-xs px-2 py-1 rounded-full bg-purple-600/20 text-purple-300 border border-purple-600/30">
