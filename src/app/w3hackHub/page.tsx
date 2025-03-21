@@ -12,6 +12,11 @@ import {
   Title,
   Tooltip,
   Legend,
+  ChartData,
+  ChartOptions,
+  Scale,
+  CoreScaleOptions,
+  TooltipItem,
 } from "chart.js";
 
 // Register ChartJS components
@@ -120,7 +125,7 @@ const Page = () => {
   const labels = Object.keys(monthlyData);
   const dataPoints = Object.values(monthlyData);
 
-  const chartData = {
+  const chartData: ChartData<"line"> = {
     labels: labels,
     datasets: [
       {
@@ -137,7 +142,7 @@ const Page = () => {
     ],
   };
 
-  const chartOptions = {
+  const chartOptions: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
     scales: {
@@ -150,11 +155,18 @@ const Page = () => {
         },
       },
       y: {
-        grid: { color: "rgba(216, 191, 216, 0.1)", borderDash: [5, 5] },
+        grid: {
+          color: "rgba(216, 191, 216, 0.1)",
+          borderDash: [5, 5], // Recognized with custom typing
+        },
         ticks: {
           color: "#d8bfd8",
           font: { size: 12 },
-          callback: (value: number) => {
+          callback: function (
+            this: Scale<CoreScaleOptions>,
+            tickValue: string | number
+          ): string {
+            const value = Number(tickValue);
             if (value >= 1_000_000_000) {
               return `${(value / 1_000_000_000).toFixed(1)}B`;
             } else if (value >= 1_000_000) {
@@ -180,10 +192,10 @@ const Page = () => {
         padding: 8,
         cornerRadius: 4,
         callbacks: {
-          title: (tooltipItems: any) => {
+          title: (tooltipItems: TooltipItem<"line">[]) => {
             return tooltipItems[0].label;
           },
-          label: (context: any) => {
+          label: (context: TooltipItem<"line">) => {
             const value = context.parsed.y;
             return `$${value.toLocaleString()}`;
           },
@@ -196,7 +208,7 @@ const Page = () => {
       },
     },
     interaction: {
-      mode: "nearest",
+      mode: "nearest" as const,
       intersect: false,
       axis: "x",
     },
@@ -513,7 +525,7 @@ const Page = () => {
 
         .trend-item {
           display: flex;
-          justify-content: space-between; /* Align category name to the left and count to the right */
+          justify-content: space-between;
           align-items: center;
           font-size: clamp(0.9rem, 2.5vw, 1.1rem);
         }
