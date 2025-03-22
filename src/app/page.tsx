@@ -9,7 +9,7 @@ import {
   Star,
   Code,
   Lightning,
-  FileSearch,  
+  FileSearch,
   FileText,
   TestTube,
   Eye,
@@ -22,58 +22,44 @@ import {
 } from 'phosphor-react';
 import Image from 'next/image';
 import Link from 'next/link';
-
-const CHAIN_CONFIG = {
-  electroneumMainnet: {
-    chainId: '0xCB2E',
-    chainName: 'Electroneum Mainnet',
-    nativeCurrency: {
-      name: 'Electroneum',
-      symbol: 'ETN',
-      decimals: 18
-    },
-    rpcUrls: ['https://rpc.ankr.com/electroneum'],
-    blockExplorerUrls: ['https://blockexplorer.electroneum.com'],
-    iconPath: '/chains/electroneum.png'
-  }
-};
+import { CHAIN_CONFIG, ChainKey } from '@/utils/web3-config'; // Adjust path as needed
 
 const features = [
   {
     icon: Shield,
     title: 'AI-Powered Audit',
     description: 'Leverage AI-driven smart contract security analysis for comprehensive risk detection.',
-    category: 'Security'
+    category: 'Security',
   },
   {
     icon: Lightning,
     title: 'Multi-Chain Compatibility',
     description: 'Audit smart contracts across multiple blockchain networks, ensuring wide-ranging security.',
-    category: 'Blockchain'
+    category: 'Blockchain',
   },
   {
     icon: Code,
     title: 'On-Chain Verification',
     description: 'Ensure transparency by storing all audit reports immutably on the blockchain.',
-    category: 'Transparency'
+    category: 'Transparency',
   },
   {
     icon: FileText,
     title: 'Automated Documentation',
     description: 'Generate AI-powered, detailed documentation for Solidity smart contracts effortlessly.',
-    category: 'Efficiency'
+    category: 'Efficiency',
   },
   {
     icon: TestTube,
     title: 'Comprehensive Test Suite',
     description: 'Automate test case generation using multi-framework support for robust contract validation.',
-    category: 'Testing'
+    category: 'Testing',
   },
   {
     icon: Eye,
     title: 'Real-Time Threat Monitoring',
     description: 'Continuously monitor deployed contracts for vulnerabilities and security threats.',
-    category: 'Monitoring'
+    category: 'Monitoring',
   },
 ];
 
@@ -84,7 +70,7 @@ const recentAudits = [
     summary: 'No critical vulnerabilities found. Code follows best practices.',
     auditor: '0xABc...123',
     timestamp: 1703116800,
-    chain: 'electroneumMainnet'
+    chain: 'electroneumMainnet',
   },
   {
     contractHash: '0x456...def',
@@ -92,7 +78,7 @@ const recentAudits = [
     summary: 'Minor optimizations suggested. Overall secure implementation.',
     auditor: '0xDEf...456',
     timestamp: 1703030400,
-    chain: 'electroneumMainnet'
+    chain: 'electroneumMainnet',
   },
   {
     contractHash: '0x789...ghi',
@@ -100,41 +86,41 @@ const recentAudits = [
     summary: 'Excellent implementation with robust security measures.',
     auditor: '0xGHi...789',
     timestamp: 1702944000,
-    chain: 'electroneumMainnet'
-  }
+    chain: 'electroneumMainnet',
+  },
 ];
 
 const steps = [
   {
-    icon: CloudArrowUp, 
+    icon: CloudArrowUp,
     title: 'Submit Your Contract',
-    description: 'Upload or paste your Solidity smart contract code for security auditing.'
+    description: 'Upload or paste your Solidity smart contract code for security auditing.',
   },
   {
-    icon: Brain, 
+    icon: Brain,
     title: 'AI-Powered Analysis',
-    description: 'Our advanced AI scans your code for vulnerabilities and security risks.'
+    description: 'Our advanced AI scans your code for vulnerabilities and security risks.',
   },
   {
-    icon: File, 
+    icon: File,
     title: 'Automated Documentation',
-    description: 'Instantly generate detailed documentation for your smart contract.'
+    description: 'Instantly generate detailed documentation for your smart contract.',
   },
   {
-    icon: Flask, 
+    icon: Flask,
     title: 'Comprehensive Testing',
-    description: 'Automatically create a test suite following industry best practices.'
+    description: 'Automatically create a test suite following industry best practices.',
   },
   {
-    icon: Archive, 
+    icon: Archive,
     title: 'Immutable Audit Report',
-    description: 'Store your audit report permanently on the blockchain for transparency.'
+    description: 'Store your audit report permanently on the blockchain for transparency.',
   },
   {
-    icon: CheckCircle, 
+    icon: CheckCircle,
     title: 'Final Verification',
-    description: 'Get your smart contract verified and ready for secure deployment.'
-  }
+    description: 'Get your smart contract verified and ready for secure deployment.',
+  },
 ];
 
 export default function Home() {
@@ -142,7 +128,7 @@ export default function Home() {
     AOS.init({
       duration: 1000,
       once: true,
-      easing: 'ease-out-cubic'
+      easing: 'ease-out-cubic',
     });
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -178,7 +164,7 @@ export default function Home() {
                 <span className="text-purple-400">SECURITY</span>
               </h1>
               <p className="text-purple-300 text-lg mb-8 max-w-xl">
-              Safeguard your smart contracts with advanced AI-powered analysis, detailed documentation, and robust on-chain verification. Engineered for cross-chain excellence across leading networks like Electroneum, Ethereum, Binance Smart Chain, Polygon, and more.
+                Safeguard your smart contracts with advanced AI-powered analysis, detailed documentation, and robust on-chain verification. Engineered for cross-chain excellence across leading networks like Electroneum, Ethereum, Binance Smart Chain, Polygon, and more.
               </p>
               <div className="flex gap-4">
                 <Link href="/audit">
@@ -268,7 +254,7 @@ export default function Home() {
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5" />
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-900/20 rounded-full filter blur-3xl" />
         <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-800/20 rounded-full filter blur-3xl" />
-        
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -318,43 +304,65 @@ export default function Home() {
               <span className="text-purple-400 text-sm font-semibold">Network Support</span>
             </div>
             <h2 className="text-4xl font-bold font-mono mb-4 text-white">
-              <span className="text-purple-400">Electroneum</span> Network Integration
+              <span className="text-purple-400">Multi-Network</span> Integration
             </h2>
             <p className="text-purple-300 text-lg max-w-2xl mx-auto">
-              Optimized for the Electroneum Network ecosystem with native support for ETN tokens
+              Optimized for multiple blockchain ecosystems with native token support
             </p>
           </motion.div>
 
-          <div className="max-w-3xl mx-auto">
-            <motion.div
-              data-aos="fade-up"
-              className="hover-gradient-effect flex items-center space-x-6 bg-purple-950/30 backdrop-blur-sm rounded-xl p-8 border border-purple-900 hover:border-purple-600 transition-all duration-300 hover:shadow-lg hover:shadow-purple-600/20"
-            >
-              <div className="relative">
-                <div className="absolute inset-0 bg-purple-900/30 rounded-full filter blur-md" />
-                <Image
-                  src="/chains/electroneum.png"
-                  alt="Electroneum Network"
-                  width={60}
-                  height={60}
-                  className="rounded-full relative z-10 ring-2 ring-purple-600 p-1"
-                />
-              </div>
-              <div>
-                <h3 className="font-semibold text-xl mb-1 text-white">Electroneum Network Mainnet</h3>
-                <p className="text-purple-300">Native Token: <span className="text-purple-400 font-semibold">ETN</span></p>
-                <div className="flex items-center mt-3 space-x-4">
-                  <a href="https://blockexplorer.electroneum.com" target="_blank" rel="noopener noreferrer" className="text-sm text-purple-400 hover:text-purple-300 flex items-center space-x-1">
-                    <FileSearch size={16} />
-                    <span>Block Explorer</span>
-                  </a>
-                  <a href="https://developer.electroneum.com" target="_blank" rel="noopener noreferrer" className="text-sm text-purple-400 hover:text-purple-300 flex items-center space-x-1">
-                    <Code size={16} />
-                    <span>Documentation</span>
-                  </a>
-                </div>
-              </div>
-            </motion.div>
+          <div className="flex flex-wrap justify-center gap-6">
+            {Object.keys(CHAIN_CONFIG).map((chain, index) => {
+              const chainConfig = CHAIN_CONFIG[chain as ChainKey];
+              return (
+                <motion.div
+                  key={chain}
+                  data-aos="fade-up"
+                  data-aos-delay={index * 100}
+                  className="hover-gradient-effect flex items-center space-x-6 bg-purple-950/30 backdrop-blur-sm rounded-xl p-6 border border-purple-900 hover:border-purple-600 transition-all duration-300 hover:shadow-lg hover:shadow-purple-600/20 w-full sm:w-[calc(50%-12px)]"
+                >
+                  <div className="relative flex-shrink-0">
+                    <div className="absolute inset-0 bg-purple-900/30 rounded-full filter blur-md" />
+                    <Image
+                      src={chainConfig.iconPath}
+                      alt={chainConfig.name}
+                      width={60}
+                      height={60}
+                      className="rounded-full relative z-10 ring-2 ring-purple-600 p-1"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-xl mb-1 text-white">{chainConfig.name}</h3>
+                    <p className="text-purple-300">
+                      Native Token:{' '}
+                      <span className="text-purple-400 font-semibold">
+                        {chainConfig.nativeCurrency.symbol}
+                      </span>
+                    </p>
+                    <div className="flex items-center mt-3 space-x-4">
+                      <a
+                        href={chainConfig.blockExplorers.default.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-purple-400 hover:text-purple-300 flex items-center space-x-1"
+                      >
+                        <FileSearch size={16} />
+                        <span>Block Explorer</span>
+                      </a>
+                      <a
+                        href={chainConfig.documentationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-purple-400 hover:text-purple-300 flex items-center space-x-1"
+                      >
+                        <Code size={16} />
+                        <span>Documentation</span>
+                      </a>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -368,9 +376,14 @@ export default function Home() {
               <div className="inline-block mb-3 px-4 py-1 rounded-full bg-purple-900/50 border border-purple-800">
                 <span className="text-purple-400 text-sm font-semibold">Verified Security</span>
               </div>
-              <h2 className="text-3xl font-mono font-bold text-white">Recent <span className="text-purple-400">Audits</span></h2>
+              <h2 className="text-3xl font-mono font-bold text-white">
+                Recent <span className="text-purple-400">Audits</span>
+              </h2>
             </div>
-            <Link href="/reports" className="text-purple-400 hover:text-purple-300 mt-4 md:mt-0 transition-colors duration-200 flex items-center gap-2 border border-purple-800 px-4 py-2 rounded-lg hover:bg-purple-900/50">
+            <Link
+              href="/reports"
+              className="text-purple-400 hover:text-purple-300 mt-4 md:mt-0 transition-colors duration-200 flex items-center gap-2 border border-purple-800 px-4 py-2 rounded-lg hover:bg-purple-900/50"
+            >
               View All Audits <ArrowRight weight="bold" />
             </Link>
           </div>
@@ -395,23 +408,21 @@ export default function Home() {
                       key={index}
                       className="border-t border-purple-900/50 hover:bg-purple-900/20 transition-colors duration-200"
                     >
-                      <td className="py-6 px-4 font-mono text-white">
-                        {audit.contractHash}
-                      </td>
+                      <td className="py-6 px-4 font-mono text-white">{audit.contractHash}</td>
                       <td className="py-6 px-4">
                         <div className="flex items-center gap-2">
                           <div className="relative">
                             <div className="absolute inset-0 bg-purple-900/30 rounded-full filter blur-[1px]" />
                             <Image
-                              src={CHAIN_CONFIG[audit.chain as keyof typeof CHAIN_CONFIG].iconPath}
-                              alt={CHAIN_CONFIG[audit.chain as keyof typeof CHAIN_CONFIG].chainName}
+                              src={CHAIN_CONFIG[audit.chain as ChainKey].iconPath}
+                              alt={CHAIN_CONFIG[audit.chain as ChainKey].name}
                               width={20}
                               height={20}
                               className="rounded-full relative z-10"
                             />
                           </div>
                           <span className="text-purple-300 text-sm">
-                            {CHAIN_CONFIG[audit.chain as keyof typeof CHAIN_CONFIG].chainName}
+                            {CHAIN_CONFIG[audit.chain as ChainKey].name}
                           </span>
                         </div>
                       </td>
@@ -420,26 +431,25 @@ export default function Home() {
                           {[...Array(5)].map((_, i) => (
                             <Star
                               key={i}
-                              weight={i < audit.stars ? "fill" : "regular"}
-                              className={i < audit.stars ? "text-purple-400" : "text-purple-900"}
+                              weight={i < audit.stars ? 'fill' : 'regular'}
+                              className={i < audit.stars ? 'text-purple-400' : 'text-purple-900'}
                               size={16}
                             />
                           ))}
                         </div>
                       </td>
                       <td className="py-6 px-4 text-purple-300 max-w-md">
-                        <div className="truncate">
-                          {audit.summary}
-                        </div>
+                        <div className="truncate">{audit.summary}</div>
                       </td>
-                      <td className="py-6 px-4 font-mono text-white">
-                        {audit.auditor}
-                      </td>
+                      <td className="py-6 px-4 font-mono text-white">{audit.auditor}</td>
                       <td className="py-6 px-4 text-purple-300">
                         {new Date(audit.timestamp * 1000).toLocaleDateString()}
                       </td>
                       <td className="py-6 px-4">
-                        <Link href={`/reports/${audit.contractHash}`} className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-900/50 hover:bg-purple-900/70 transition-colors duration-200">
+                        <Link
+                          href={`/reports/${audit.contractHash}`}
+                          className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-900/50 hover:bg-purple-900/70 transition-colors duration-200"
+                        >
                           <ArrowRight className="w-4 h-4 text-purple-400" weight="bold" />
                         </Link>
                       </td>
@@ -458,7 +468,7 @@ export default function Home() {
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5" />
         <div className="absolute left-0 top-1/4 w-1/3 h-1/2 bg-purple-900/20 rounded-full filter blur-3xl" />
         <div className="absolute right-0 bottom-1/4 w-1/3 h-1/2 bg-purple-800/20 rounded-full filter blur-3xl" />
-        
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="relative rounded-2xl overflow-hidden border border-purple-800 shadow-2xl shadow-purple-600/20 backdrop-blur-sm">
             <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 to-purple-800/20" />
