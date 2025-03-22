@@ -61,7 +61,6 @@ export default function ContractBuilder() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contractParams, setContractParams] = useState<Record<string, string>>({});
-  const [optimizationLevel, setOptimizationLevel] = useState<'none' | 'basic' | 'advanced'>('basic');
 
   // Deployment state
   const [isDeploying, setIsDeploying] = useState(false);
@@ -144,21 +143,29 @@ export default function ContractBuilder() {
           {
             role: "system",
             content: `You are an expert Solidity developer with security auditing experience. Generate a secure, optimized smart contract with:
-            - Solidity 0.8.19
-            - No external libraries
-            - Comprehensive security measures (reentrancy guards, overflow checks, etc.)
-            - Gas optimizations based on level: ${optimizationLevel}
-            - Detailed gas analysis
-            - Vulnerability assessment
-            Return in JSON format with code, features, securityNotes, gasAnalysis, and potentialVulnerabilities`
+              - Solidity 0.8.19
+              - No external libraries
+              - Comprehensive security measures (reentrancy guards, overflow checks, etc.)
+              - Detailed gas analysis
+              - Vulnerability assessment
+              Return a JSON object with the following structure:
+              {
+                "code": "string", // The generated Solidity code
+                "features": ["string"], // Array of feature descriptions
+                "securityNotes": ["string"], // Array of security notes
+                "gasAnalysis": { // Optional gas analysis object
+                  "estimatedDeploymentCost": number,
+                  "functionCosts": { "functionName": number }
+                },
+                "potentialVulnerabilities": ["string"] // Optional array of vulnerabilities
+              }`
           },
           {
             role: "user",
             content: `Template: ${selectedTemplate.name}
-            Base Code: ${selectedTemplate.baseCode || 'Create new'}
-            Features: ${customFeatures || 'Standard'}
-            Parameters: ${JSON.stringify(contractParams)}
-            Optimization Level: ${optimizationLevel}`
+              Base Code: ${selectedTemplate.baseCode || 'Create new'}
+              Features: ${customFeatures || 'Standard'}
+              Parameters: ${JSON.stringify(contractParams)}`
           }
         ],
         responseFormat: { type: "json_object" },
@@ -166,17 +173,29 @@ export default function ContractBuilder() {
         maxTokens: 4096
       });
 
+      // Log the raw response for debugging
+      console.log("Mistral API Response:", response.choices?.[0]?.message?.content);
+
       const parsedResponse = JSON.parse(response.choices?.[0]?.message?.content as string || '{}');
+
+      // Validate the response with Zod
       const validated = ContractSchema.parse(parsedResponse);
 
       setGeneratedCode(validated.code);
-      setSecurityNotes(validated.securityNotes);
+      setSecurityNotes(validated.securityNotes || []);
       setGasAnalysis(validated.gasAnalysis || null);
       setVulnerabilities(validated.potentialVulnerabilities || []);
     } catch (err) {
       console.error('Generation error:', err);
-      setError('Failed to generate contract');
+      if (err instanceof z.ZodError) {
+        setError(`Validation failed: ${err.message}`);
+      } else {
+        setError('Failed to generate contract');
+      }
       setGeneratedCode(selectedTemplate.baseCode || '');
+      setSecurityNotes([]);
+      setGasAnalysis(null);
+      setVulnerabilities([]);
     } finally {
       setIsGenerating(false);
     }
@@ -407,15 +426,6 @@ export default function ContractBuilder() {
                   placeholder="Custom features..."
                   className="w-full h-24 p-2 bg-[#1a001a] rounded border border-[#4b0082] focus:border-[#9333ea] text-white transition-all duration-200"
                 />
-                <select
-                  value={optimizationLevel}
-                  onChange={e => setOptimizationLevel(e.target.value as 'none' | 'basic' | 'advanced')}
-                  className="w-full mt-2 p-2 bg-[#1a001a] rounded border border-[#4b0082] text-white transition-all duration-200"
-                >
-                  <option value="none">No Optimization</option>
-                  <option value="basic">Basic Optimization</option>
-                  <option value="advanced">Advanced Optimization</option>
-                </select>
                 <button
                   onClick={generateContract}
                   disabled={!selectedTemplate || isGenerating}
@@ -556,6 +566,29 @@ export default function ContractBuilder() {
           </motion.div>
         </div>
       </div>
+      <style jsx global>{`
+        select {
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23a855f7' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7' /%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 0.5rem center;
+          background-size: 1.5em;
+        }
+        select::-ms-expand {
+          display: none;
+        }
+        select option {
+          background-color: #1a001a !important;
+          color: #ffffff !important;
+        }
+        select:focus {
+          outline: none;
+          border-color: #9333ea;
+          box-shadow: 0 0 0 2px rgba(147, 51, 234, 0.3);
+        }
+      `}</style>
     </div>
   );
 }

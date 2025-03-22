@@ -1,6 +1,6 @@
 // src/app/contract-builder/templates.ts
 import React, { ReactNode } from 'react';
-import { Cube, Lightning, Gear } from 'phosphor-react';
+import { Cube, Lightning, Gear, Coin, Lock, CheckSquare } from 'phosphor-react';
 
 export interface ContractTemplate {
   name: string;
@@ -259,6 +259,256 @@ contract CustomNFT {
     }
 }`;
 
+// Custom implementation of Crowdfunding Contract
+const CROWDFUNDING_BASE = `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+contract Crowdfunding {
+    address public owner;
+    string public projectName;
+    uint256 public fundingGoal;
+    uint256 public deadline;
+    uint256 public totalFunds;
+    bool public completed;
+
+    mapping(address => uint256) public contributions;
+    address[] public contributors;
+
+    event Contribution(address indexed contributor, uint256 amount);
+    event GoalReached(uint256 totalFunds);
+    event FundsWithdrawn(address indexed owner, uint256 amount);
+    event Refund(address indexed contributor, uint256 amount);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
+    modifier beforeDeadline() {
+        require(block.timestamp < deadline, "Deadline passed");
+        _;
+    }
+
+    modifier afterDeadline() {
+        require(block.timestamp >= deadline, "Before deadline");
+        _;
+    }
+
+    constructor(string memory _projectName, uint256 _fundingGoal, uint256 _duration) {
+        owner = msg.sender;
+        projectName = _projectName;
+        fundingGoal = _fundingGoal * 1 ether;
+        deadline = block.timestamp + (_duration * 1 days);
+    }
+
+    function contribute() external payable beforeDeadline {
+        require(msg.value > 0, "Contribution must be greater than 0");
+        require(!completed, "Funding completed");
+
+        if (contributions[msg.sender] == 0) {
+            contributors.push(msg.sender);
+        }
+        contributions[msg.sender] += msg.value;
+        totalFunds += msg.value;
+
+        emit Contribution(msg.sender, msg.value);
+
+        if (totalFunds >= fundingGoal) {
+            completed = true;
+            emit GoalReached(totalFunds);
+        }
+    }
+
+    function withdrawFunds() external onlyOwner afterDeadline {
+        require(completed, "Goal not reached");
+        uint256 amount = address(this).balance;
+        require(amount > 0, "No funds to withdraw");
+
+        (bool sent, ) = owner.call{value: amount}("");
+        require(sent, "Failed to send funds");
+
+        emit FundsWithdrawn(owner, amount);
+    }
+
+    function refund() external afterDeadline {
+        require(!completed, "Goal reached, no refunds");
+        uint256 amount = contributions[msg.sender];
+        require(amount > 0, "No contributions");
+
+        contributions[msg.sender] = 0;
+        (bool sent, ) = msg.sender.call{value: amount}("");
+        require(sent, "Failed to send refund");
+
+        emit Refund(msg.sender, amount);
+    }
+
+    function getContractBalance() public view returns (uint256) {
+        return address(this).balance;
+    }
+}`;
+
+// Custom implementation of Staking Contract
+const STAKING_BASE = `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+contract Staking {
+    address public owner;
+    uint256 public rewardRate; // Rewards per second
+    uint256 public totalStaked;
+
+    struct Stake {
+        uint256 amount;
+        uint256 startTime;
+        uint256 lastClaim;
+    }
+
+    mapping(address => Stake) public stakes;
+    mapping(address => uint256) public rewards;
+
+    event Staked(address indexed user, uint256 amount);
+    event Unstaked(address indexed user, uint256 amount);
+    event RewardClaimed(address indexed user, uint256 amount);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
+    constructor(uint256 _rewardRate) {
+        owner = msg.sender;
+        rewardRate = _rewardRate;
+    }
+
+    function stake() external payable {
+        require(msg.value > 0, "Stake amount must be greater than 0");
+
+        Stake storage userStake = stakes[msg.sender];
+        if (userStake.amount > 0) {
+            updateRewards(msg.sender);
+        } else {
+            userStake.startTime = block.timestamp;
+        }
+
+        userStake.amount += msg.value;
+        userStake.lastClaim = block.timestamp;
+        totalStaked += msg.value;
+
+        emit Staked(msg.sender, msg.value);
+    }
+
+    function unstake(uint256 amount) external {
+        Stake storage userStake = stakes[msg.sender];
+        require(userStake.amount >= amount, "Insufficient staked amount");
+
+        updateRewards(msg.sender);
+
+        userStake.amount -= amount;
+        totalStaked -= amount;
+
+        (bool sent, ) = msg.sender.call{value: amount}("");
+        require(sent, "Failed to send funds");
+
+        emit Unstaked(msg.sender, amount);
+    }
+
+    function claimRewards() external {
+        updateRewards(msg.sender);
+        uint256 reward = rewards[msg.sender];
+        require(reward > 0, "No rewards to claim");
+
+        rewards[msg.sender] = 0;
+        (bool sent, ) = msg.sender.call{value: reward}("");
+        require(sent, "Failed to send rewards");
+
+        emit RewardClaimed(msg.sender, reward);
+    }
+
+    function updateRewards(address user) internal {
+        Stake storage userStake = stakes[user];
+        if (userStake.amount > 0) {
+            uint256 timeElapsed = block.timestamp - userStake.lastClaim;
+            rewards[user] += (userStake.amount * rewardRate * timeElapsed) / 1e18;
+            userStake.lastClaim = block.timestamp;
+        }
+    }
+
+    function setRewardRate(uint256 _rewardRate) external onlyOwner {
+        rewardRate = _rewardRate;
+    }
+
+    function getStakeInfo(address user) external view returns (uint256 amount, uint256 pendingReward) {
+        Stake memory userStake = stakes[user];
+        uint256 timeElapsed = block.timestamp - userStake.lastClaim;
+        pendingReward = rewards[user] + (userStake.amount * rewardRate * timeElapsed) / 1e18;
+        return (userStake.amount, pendingReward);
+    }
+}`;
+
+// Custom implementation of Voting Contract
+const VOTING_BASE = `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+contract Voting {
+    address public owner;
+    string public proposal;
+    uint256 public votingEndTime;
+    bool public votingClosed;
+
+    struct Vote {
+        bool hasVoted;
+        bool support;
+    }
+
+    mapping(address => Vote) public votes;
+    uint256 public votesFor;
+    uint256 public votesAgainst;
+
+    event Voted(address indexed voter, bool support);
+    event VotingClosed(bool approved);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
+    modifier votingOpen() {
+        require(block.timestamp < votingEndTime && !votingClosed, "Voting closed");
+        _;
+    }
+
+    constructor(string memory _proposal, uint256 _duration) {
+        owner = msg.sender;
+        proposal = _proposal;
+        votingEndTime = block.timestamp + (_duration * 1 days);
+    }
+
+    function vote(bool support) external votingOpen {
+        Vote storage voter = votes[msg.sender];
+        require(!voter.hasVoted, "Already voted");
+
+        voter.hasVoted = true;
+        voter.support = support;
+
+        if (support) {
+            votesFor += 1;
+        } else {
+            votesAgainst += 1;
+        }
+
+        emit Voted(msg.sender, support);
+    }
+
+    function closeVoting() external onlyOwner {
+        require(block.timestamp >= votingEndTime || votesFor + votesAgainst > 0, "Voting still active");
+        votingClosed = true;
+        emit VotingClosed(votesFor > votesAgainst);
+    }
+
+    function getVotingResult() external view returns (string memory, uint256, uint256, bool) {
+        return (proposal, votesFor, votesAgainst, votingClosed ? votesFor > votesAgainst : false);
+    }
+}`;
+
 export const CONTRACT_TEMPLATES: ContractTemplate[] = [
   {
     name: 'ERC20 Token',
@@ -290,5 +540,38 @@ export const CONTRACT_TEMPLATES: ContractTemplate[] = [
     icon: React.createElement(Gear, { size: 24 }),
     features: ['Full Customization', 'AI Assistance', 'Best Practices', 'Security First'],
     baseCode: ''
+  },
+  {
+    name: 'Crowdfunding',
+    description: 'Create a crowdfunding campaign with refund support',
+    icon: React.createElement(Coin, { size: 24 }), // Replaced PiggyBank with Coin
+    features: ['Funding Goal', 'Refunds', 'Deadline', 'Owner Withdrawal'],
+    defaultParams: {
+      projectName: 'My Crowdfunding Project',
+      fundingGoal: '10', // In Ether
+      duration: '30' // In days
+    },
+    baseCode: CROWDFUNDING_BASE
+  },
+  {
+    name: 'Staking',
+    description: 'Set up a staking contract with rewards',
+    icon: React.createElement(Lock, { size: 24 }),
+    features: ['Stake/Unstake', 'Reward System', 'Owner Control', 'Real-time Rewards'],
+    defaultParams: {
+      rewardRate: '1000000000000000' // Rewards per second (adjust as needed)
+    },
+    baseCode: STAKING_BASE
+  },
+  {
+    name: 'Voting',
+    description: 'Create a decentralized voting system',
+    icon: React.createElement(CheckSquare, { size: 24 }), // Replaced Ballot with CheckSquare
+    features: ['Proposal Voting', 'Deadline', 'Result Tracking', 'Owner Closure'],
+    defaultParams: {
+      proposal: 'Should we proceed with the project?',
+      duration: '7' // In days
+    },
+    baseCode: VOTING_BASE
   }
 ];
