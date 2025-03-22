@@ -1,4 +1,3 @@
-// ContractBuilder.tsx
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -17,12 +16,17 @@ import {
   Code,
   Lightning,
   Shield,
-  ArrowRight
+  ArrowRight,
+  Info
 } from 'phosphor-react';
-import { useAccount, useConnect, useSwitchChain, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useConnect, usePublicClient, useWalletClient } from 'wagmi';
 import { CONTRACT_TEMPLATES, ContractTemplate } from './templates';
 import { CHAIN_CONFIG } from '@/utils/web3';
 import React from 'react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import Image from 'next/image';
+import { Hex, Hash } from 'viem';
 
 const mistralClient = new Mistral({
   apiKey: process.env.NEXT_PUBLIC_MISTRAL_API_KEY!
@@ -34,6 +38,11 @@ const ContractSchema = z.object({
   securityNotes: z.array(z.string())
 });
 
+interface AbiItem {
+  type: string;
+  inputs?: Array<{ type: string; name: string }>;
+}
+
 export default function ContractBuilder() {
   const [selectedTemplate, setSelectedTemplate] = useState<ContractTemplate | null>(null);
   const [customFeatures, setCustomFeatures] = useState('');
@@ -41,7 +50,6 @@ export default function ContractBuilder() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contractParams, setContractParams] = useState<Record<string, string>>({});
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [copySuccess, setCopySuccess] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployedAddress, setDeployedAddress] = useState<string | null>(null);
@@ -49,27 +57,28 @@ export default function ContractBuilder() {
   const [currentChain, setCurrentChain] = useState<keyof typeof CHAIN_CONFIG | null>(null);
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
   const [securityNotes, setSecurityNotes] = useState<string[]>([]);
-  const [manualCode, setManualCode] = useState('');
-  const displayedCode = generatedCode || manualCode;
+  const [showFeatures, setShowFeatures] = useState(false);
+  const [transactionHash, setTransactionHash] = useState<Hash | null>(null);
+  const displayedCode = generatedCode;
 
-  const handleManualCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setManualCode(e.target.value);
-    setGeneratedCode('');
-  };
-
-  const { chain, address, isConnected } = useAccount();
-  const { switchChain } = useSwitchChain();
+  const { chain, isConnected } = useAccount();
   const { connect, connectors } = useConnect();
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
 
   useEffect(() => {
     setWalletConnected(isConnected);
     if (chain) {
       const chainConfig = Object.entries(CHAIN_CONFIG).find(
-        ([_, config]) => config.chainId.toLowerCase() === chain.id.toString(16).toLowerCase()
+        ([_, config]) => config.chainId.toLowerCase() === ('0x' + chain.id.toString(16)).toLowerCase()
       );
       if (chainConfig) {
         setCurrentChain(chainConfig[0] as keyof typeof CHAIN_CONFIG);
+      } else {
+        setCurrentChain(null);
       }
+    } else {
+      setCurrentChain(null);
     }
   }, [isConnected, chain]);
 
@@ -82,14 +91,6 @@ export default function ContractBuilder() {
       setGeneratedCode('');
     }
   }, [selectedTemplate]);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePosition({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
 
   const generateContract = async () => {
     if (!selectedTemplate) return;
@@ -150,7 +151,7 @@ export default function ContractBuilder() {
 
       setGeneratedCode(validatedResponse.code);
       setSecurityNotes(validatedResponse.securityNotes);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Generation failed:', error);
       setError('Failed to generate contract. Please try again.');
       if (selectedTemplate.baseCode) {
@@ -161,18 +162,17 @@ export default function ContractBuilder() {
     }
   };
 
-  const { writeContract, data: hash, error: writeError, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
-
   const deployContract = async () => {
-    if (!displayedCode || !isConnected) return;
+    if (!displayedCode || !isConnected || !walletClient || !publicClient) return;
 
     setIsDeploying(true);
     setDeploymentError(null);
 
     try {
-      if (!chain || (chain.id.toString(16) !== CHAIN_CONFIG.electroneumMainnet.chainId && 
-          chain.id.toString(16) !== CHAIN_CONFIG.electroneumTestnet.chainId)) {
+      if (!chain || (
+        ('0x' + chain.id.toString(16)).toLowerCase() !== CHAIN_CONFIG.electroneumMainnet.chainId.toLowerCase() &&
+        ('0x' + chain.id.toString(16)).toLowerCase() !== CHAIN_CONFIG.electroneumTestnet.chainId.toLowerCase()
+      )) {
         throw new Error('Please switch to Electroneum Network (Mainnet or Testnet) to deploy contracts');
       }
 
@@ -188,9 +188,9 @@ export default function ContractBuilder() {
         throw new Error(`Compilation failed: ${errorDetails}`);
       }
 
-      const { abi, bytecode } = await response.json();
-      const constructorAbi = abi.find((item: any) => item.type === 'constructor');
-      const constructorArgs = Object.values(contractParams).map((value, index) => {
+      const { abi, bytecode }: { abi: AbiItem[]; bytecode: string } = await response.json();
+      const constructorAbi = abi.find((item) => item.type === 'constructor');
+      const constructorArgs = constructorAbi ? Object.values(contractParams).map((value, index) => {
         const input = constructorAbi?.inputs?.[index];
         if (!input) return value;
         switch (input.type) {
@@ -201,40 +201,47 @@ export default function ContractBuilder() {
           default:
             return value;
         }
-      });
+      }) : [];
 
-      writeContract({        
-        address: address!,
+      // Deploy the contract using viem's walletClient
+      const hash = await walletClient.deployContract({
         abi,
+        bytecode: bytecode as Hex,
         args: constructorArgs,
-        functionName: 'constructor',
       });
 
-    } catch (error: any) {
+      setTransactionHash(hash);
+
+      // Wait for the transaction to be confirmed
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.contractAddress) {
+        setDeployedAddress(receipt.contractAddress);
+      } else {
+        throw new Error('Contract deployment failed: No contract address in receipt');
+      }
+
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Deployment failed';
       console.error('Deployment failed:', error);
-      setDeploymentError(error.message || 'Deployment failed');
+      setDeploymentError(errorMessage);
+      setIsDeploying(false);
+    } finally {
       setIsDeploying(false);
     }
   };
 
-  useEffect(() => {
-    if (hash && isConfirmed) {
-      setDeployedAddress(hash);
-      setIsDeploying(false);
-    }
-  }, [hash, isConfirmed]);
-
   const getExplorerUrl = () => {
     if (!currentChain || !deployedAddress) return null;
     const baseUrl = CHAIN_CONFIG[currentChain].blockExplorerUrls[0];
-    return `${baseUrl}/address/${deployedAddress}`;
+    return `${baseUrl}/address/${deployedAddress}`; // Changed to /address/ since deployedAddress is now the contract address
   };
 
   const handleConnectWallet = () => {
     try {
       connect({ connector: connectors[0] });
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to connect wallet';
+      setError(errorMessage);
     }
   };
 
@@ -322,6 +329,16 @@ export default function ContractBuilder() {
                       <span className="font-semibold text-white">{template.name}</span>
                     </div>
                     <p className="text-xs text-purple-300 mb-2">{template.description}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {template.features.map((feature) => (
+                        <span
+                          key={feature}
+                          className="text-xs px-2 py-1 rounded-full bg-purple-600/20 text-purple-300 border border-purple-600/30"
+                        >
+                          {feature}
+                        </span>
+                      ))}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -381,7 +398,7 @@ export default function ContractBuilder() {
                     <textarea
                       value={customFeatures}
                       onChange={(e) => setCustomFeatures(e.target.value)}
-                      placeholder="Describe additional features..."
+                      placeholder="Describe additional features (e.g., add a whitelist, implement a timelock)..."
                       className="w-full h-24 bg-transparent rounded-lg border border-purple-900 p-2 text-white resize-none focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600/50 transition-all duration-200"
                     />
                   </div>
@@ -398,33 +415,75 @@ export default function ContractBuilder() {
                   <FileCode className="text-purple-400" size={20} weight="duotone" />
                   <span className="font-mono text-white">Generated Contract</span>
                 </div>
-                {displayedCode && (
-                  <button
-                    onClick={() => copyToClipboard(displayedCode)}
-                    className="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1 transition-colors duration-200 px-2 py-1 rounded-md hover:bg-purple-600/20"
-                  >
-                    {copySuccess ? <Check size={16} weight="bold" /> : <Copy size={16} weight="bold" />}
-                    {copySuccess ? 'Copied!' : 'Copy Code'}
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {displayedCode && (
+                    <button
+                      onClick={() => setShowFeatures(!showFeatures)}
+                      className="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1 transition-colors duration-200 px-2 py-1 rounded-md hover:bg-purple-600/20"
+                    >
+                      <Info size={16} weight="bold" />
+                      {showFeatures ? 'Show Code' : 'Show Features'}
+                    </button>
+                  )}
+                  {displayedCode && !showFeatures && (
+                    <button
+                      onClick={() => copyToClipboard(displayedCode)}
+                      className="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1 transition-colors duration-200 px-2 py-1 rounded-md hover:bg-purple-600/20"
+                    >
+                      {copySuccess ? <Check size={16} weight="bold" /> : <Copy size={16} weight="bold" />}
+                      {copySuccess ? 'Copied!' : 'Copy Code'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="code-container">
                 {displayedCode ? (
-                  <>
-                    <div className="line-numbers">
-                      {Array.from({ length: displayedCode.split('\n').length }, (_, i) => i + 1).map(lineNumber => (
-                        <span key={lineNumber} className="line-number">
-                          {lineNumber}
-                        </span>
-                      ))}
+                  showFeatures ? (
+                    <div className="p-6 h-full overflow-auto custom-scrollbar">
+                      <h3 className="font-mono text-sm text-purple-400 mb-4">Contract Features</h3>
+                      <div className="flex flex-wrap gap-2 mb-6">
+                        {selectedTemplate?.features.map((feature) => (
+                          <span
+                            key={feature}
+                            className="text-xs px-2 py-1 rounded-full bg-purple-600/20 text-purple-300 border border-purple-600/30"
+                          >
+                            {feature}
+                          </span>
+                        ))}
+                      </div>
+                      {securityNotes.length > 0 && (
+                        <div>
+                          <h3 className="font-mono text-sm text-purple-400 mb-2">Security Notes</h3>
+                          <ul className="text-sm text-purple-300 space-y-2">
+                            {securityNotes.map((note, index) => (
+                              <li key={index} className="flex items-start gap-2">
+                                <ArrowRight className="text-purple-400 mt-0.5 flex-shrink-0" size={12} />
+                                <span>{note}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
-                    <textarea
-                      value={displayedCode}
-                      onChange={handleManualCodeChange}
-                      className="code-input font-mono text-sm text-white bg-transparent border-none resize-none outline-none p-4 w-full h-full absolute top-0 left-0 overflow-y-scroll custom-scrollbar"
-                    />
-                  </>
+                  ) : (
+                    <SyntaxHighlighter
+                      language="solidity"
+                      style={vscDarkPlus}
+                      showLineNumbers
+                      wrapLines
+                      customStyle={{
+                        margin: 0,
+                        padding: '16px',
+                        background: 'transparent',
+                        height: '100%',
+                        overflow: 'auto',
+                        fontSize: '14px',
+                      }}
+                    >
+                      {displayedCode}
+                    </SyntaxHighlighter>
+                  )
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-purple-300">
                     <div className="relative">
@@ -453,10 +512,12 @@ export default function ContractBuilder() {
                       <div className="text-sm flex items-center gap-2 bg-purple-600/20 border border-purple-600/30 rounded-lg px-3 py-2">
                         <span className="text-purple-300">Network:</span>
                         <span className="text-purple-400 font-mono flex items-center gap-1">
-                          <img 
+                          <Image
                             src={CHAIN_CONFIG[currentChain].iconPath}
                             alt={CHAIN_CONFIG[currentChain].chainName}
-                            className="w-4 h-4 rounded-full"
+                            width={16}
+                            height={16}
+                            className="rounded-full"
                           />
                           {CHAIN_CONFIG[currentChain].chainName}
                         </span>
@@ -495,7 +556,7 @@ export default function ContractBuilder() {
                       </div>
                     )}
                     
-                    {securityNotes.length > 0 && (
+                    {securityNotes.length > 0 && !showFeatures && (
                       <div className="mt-4 bg-purple-600/10 border border-purple-600/30 rounded-lg p-3">
                         <div className="flex items-center gap-2 mb-2">
                           <Shield className="text-purple-400" size={16} weight="fill" />
@@ -525,50 +586,20 @@ export default function ContractBuilder() {
           height: 600px;
         }
 
-        .line-numbers {
-          position: absolute;
-          top: 0;
-          left: 0;
-          height: 100%;
-          padding: 4px;
-          text-align: right;
-          color: #A78BFA;
-          font-size: 14px;
-          font-family: monospace;
-          white-space: nowrap;
-          overflow-y: auto;
-          z-index: 1;
-          background-color: #1A1523;
-          border-right: 1px solid #6B46C1;
-        }
-
-        .line-number {
-          display: block;
-          padding: 0 8px;
-        }
-
-        .code-input {
-          padding-left: 50px;
-          z-index: 2;
-          height: 100%;
-          scrollbar-width: thin;
-          scrollbar-color: rgba(107, 70, 193, 0.3) transparent;
-        }
-
-        .code-input::-webkit-scrollbar {
+        .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }
 
-        .code-input::-webkit-scrollbar-track {
+        .custom-scrollbar::-webkit-scrollbar-track {
           background: transparent;
         }
 
-        .code-input::-webkit-scrollbar-thumb {
+        .custom-scrollbar::-webkit-scrollbar-thumb {
           background-color: rgba(107, 70, 193, 0.3);
           border-radius: 3px;
         }
 
-        .code-input::-webkit-scrollbar-thumb:hover {
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background-color: rgba(107, 70, 193, 0.5);
         }
       `}</style>
