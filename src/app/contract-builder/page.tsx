@@ -331,12 +331,12 @@ export default function ContractBuilder() {
   };
 
   return (
-    <div className="min-h-screen py-12 bg-gradient-to-br from-zinc-900 to-black text-white">
+    <div className="min-h-screen py-12 bg-gradient-to-br from-black to-[#2d0047] text-white">
       <div className="max-w-7xl mx-auto px-4">
         <motion.h1 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-4xl font-mono font-bold mb-8 text-blue-400 text-center"
+          className="text-4xl font-mono font-bold mb-8 text-[#a855f7] text-center"
         >
           Advanced Contract Builder
         </motion.h1>
@@ -347,7 +347,7 @@ export default function ContractBuilder() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="mb-4 p-2 bg-red-500/20 text-red-400 rounded"
+              className="mb-4 p-2 bg-[#2d0047] text-[#c084fc] rounded-lg shadow-lg"
             >
               {error}
             </motion.div>
@@ -361,23 +361,25 @@ export default function ContractBuilder() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
           >
-            <div className="bg-gray-900/80 p-6 rounded-xl border border-blue-500/20 shadow-xl">
-              <h2 className="flex items-center gap-2 text-lg font-mono mb-4">
-                <Robot className="text-blue-400" /> Templates
+            <div className="bg-[#1a001a] p-6 rounded-xl border border-[#4b0082] shadow-lg">
+              <h2 className="flex items-center gap-2 text-lg font-mono mb-4 text-[#a855f7]">
+                <Robot className="text-[#a855f7]" /> Templates
               </h2>
               {CONTRACT_TEMPLATES.map(template => (
                 <button
                   key={template.name}
                   onClick={() => setSelectedTemplate(template)}
-                  className={`w-full p-4 mb-2 rounded-lg border ${selectedTemplate?.name === template.name 
-                    ? 'border-blue-500 bg-blue-500/10' 
-                    : 'border-gray-700 hover:border-blue-400/50'}`}
+                  className={`w-full p-4 mb-2 rounded-lg border transition-all duration-300 ${
+                    selectedTemplate?.name === template.name 
+                      ? 'border-[#9333ea] bg-[#9333ea]/20' 
+                      : 'border-[#4b0082] hover:border-[#a855f7] hover:bg-[#2d0047]'
+                  }`}
                 >
                   <div className="flex items-center gap-3">
                     {template.icon}
                     <div className="text-left">
-                      <div className="font-semibold">{template.name}</div>
-                      <div className="text-xs text-gray-400">{template.description}</div>
+                      <div className="font-semibold text-white">{template.name}</div>
+                      <div className="text-xs text-[#c084fc]">{template.description}</div>
                     </div>
                   </div>
                 </button>
@@ -385,17 +387,17 @@ export default function ContractBuilder() {
             </div>
 
             {selectedTemplate && (
-              <div className="bg-gray-900/80 p-6 rounded-xl border border-blue-500/20 shadow-xl">
-                <h2 className="flex items-center gap-2 text-lg font-mono mb-4">
-                  <Code className="text-blue-400" /> Parameters
+              <div className="bg-[#1a001a] p-6 rounded-xl border border-[#4b0082] shadow-lg">
+                <h2 className="flex items-center gap-2 text-lg font-mono mb-4 text-[#a855f7]">
+                  <Code className="text-[#a855f7]" /> Parameters
                 </h2>
                 {Object.entries(contractParams).map(([key, value]) => (
                   <div key={key} className="mb-4">
-                    <label className="text-sm text-gray-400">{key}</label>
+                    <label className="text-sm text-[#c084fc]">{key}</label>
                     <input
                       value={value}
                       onChange={e => setContractParams(prev => ({ ...prev, [key]: e.target.value }))}
-                      className="w-full mt-1 p-2 bg-gray-800 rounded border border-gray-700 focus:border-blue-500"
+                      className="w-full mt-1 p-2 bg-[#1a001a] rounded border border-[#4b0082] focus:border-[#9333ea] text-white transition-all duration-200"
                     />
                   </div>
                 ))}
@@ -403,12 +405,12 @@ export default function ContractBuilder() {
                   value={customFeatures}
                   onChange={e => setCustomFeatures(e.target.value)}
                   placeholder="Custom features..."
-                  className="w-full h-24 p-2 bg-gray-800 rounded border border-gray-700 focus:border-blue-500"
+                  className="w-full h-24 p-2 bg-[#1a001a] rounded border border-[#4b0082] focus:border-[#9333ea] text-white transition-all duration-200"
                 />
                 <select
                   value={optimizationLevel}
                   onChange={e => setOptimizationLevel(e.target.value as 'none' | 'basic' | 'advanced')}
-                  className="w-full mt-2 p-2 bg-gray-800 rounded border border-gray-700"
+                  className="w-full mt-2 p-2 bg-[#1a001a] rounded border border-[#4b0082] text-white transition-all duration-200"
                 >
                   <option value="none">No Optimization</option>
                   <option value="basic">Basic Optimization</option>
@@ -417,7 +419,7 @@ export default function ContractBuilder() {
                 <button
                   onClick={generateContract}
                   disabled={!selectedTemplate || isGenerating}
-                  className="w-full mt-4 p-3 bg-blue-500 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-700"
+                  className="w-full mt-4 p-3 bg-[#9333ea] rounded-lg flex items-center justify-center gap-2 disabled:bg-[#2d0047] hover:bg-[#a855f7] transition-all duration-300"
                 >
                   {isGenerating ? <CircleNotch className="animate-spin" /> : <Robot />}
                   {isGenerating ? 'Generating...' : 'Generate'}
@@ -432,31 +434,31 @@ export default function ContractBuilder() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <div className="bg-gray-900/80 rounded-xl border border-blue-500/20 shadow-xl flex-1 flex flex-col">
-              <div className="p-4 border-b border-gray-700 flex justify-between items-center">
-                <span className="flex items-center gap-2 font-mono">
-                  <FileCode className="text-blue-400" /> Code
+            <div className="bg-[#1a001a] rounded-xl border border-[#4b0082] shadow-lg flex-1 flex flex-col">
+              <div className="p-4 border-b border-[#4b0082] flex justify-between items-center">
+                <span className="flex items-center gap-2 font-mono text-[#a855f7]">
+                  <FileCode className="text-[#a855f7]" /> Code
                 </span>
                 <div className="flex gap-2">
-                  <button onClick={analyzeSecurity} className="p-2 hover:bg-blue-500/10 rounded" title="Analyze Security">
-                    <Bug className="text-blue-400" />
+                  <button onClick={analyzeSecurity} className="p-2 hover:bg-[#9333ea]/20 rounded transition-all duration-200" title="Analyze Security">
+                    <Bug className="text-[#a855f7]" />
                   </button>
-                  <button onClick={downloadContract} className="p-2 hover:bg-blue-500/10 rounded" title="Download Contract">
-                    <Download className="text-blue-400" />
+                  <button onClick={downloadContract} className="p-2 hover:bg-[#9333ea]/20 rounded transition-all duration-200" title="Download Contract">
+                    <Download className="text-[#a855f7]" />
                   </button>
                   <button 
                     onClick={() => navigator.clipboard.writeText(displayedCode)} 
-                    className="p-2 hover:bg-blue-500/10 rounded" 
+                    className="p-2 hover:bg-[#9333ea]/20 rounded transition-all duration-200" 
                     title="Copy Code"
                   >
-                    {displayedCode ? <Check className="text-blue-400" /> : <Copy className="text-blue-400" />}
+                    {displayedCode ? <Check className="text-[#a855f7]" /> : <Copy className="text-[#a855f7]" />}
                   </button>
                 </div>
               </div>
               <textarea
                 value={displayedCode}
                 onChange={e => { setManualCode(e.target.value); setGeneratedCode(''); }}
-                className="flex-1 p-4 font-mono bg-transparent border-none resize-none focus:outline-none"
+                className="flex-1 p-4 font-mono bg-transparent border-none resize-none focus:outline-none text-white"
                 placeholder="Your contract code will appear here..."
               />
             </div>
@@ -468,27 +470,27 @@ export default function ContractBuilder() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
           >
-            <div className="bg-gray-900/80 p-6 rounded-xl border border-blue-500/20 shadow-xl">
-              <h2 className="flex items-center gap-2 text-lg font-mono mb-4">
-                <Shield className="text-blue-400" /> Analysis
+            <div className="bg-[#1a001a] p-6 rounded-xl border border-[#4b0082] shadow-lg">
+              <h2 className="flex items-center gap-2 text-lg font-mono mb-4 text-[#a855f7]">
+                <Shield className="text-[#a855f7]" /> Analysis
               </h2>
               {gasAnalysis && (
                 <div className="mb-4">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <GasPump className="text-blue-400" /> Gas Analysis
+                  <h3 className="text-sm font-semibold flex items-center gap-2 text-[#c084fc]">
+                    <GasPump className="text-[#a855f7]" /> Gas Analysis
                   </h3>
-                  <pre className="text-xs text-gray-300">{JSON.stringify(gasAnalysis, null, 2)}</pre>
+                  <pre className="text-xs text-[#d8b4fe]">{JSON.stringify(gasAnalysis, null, 2)}</pre>
                 </div>
               )}
               {vulnerabilities.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-red-400 flex items-center gap-2">
-                    <Lock className="text-red-400" /> Potential Vulnerabilities
+                  <h3 className="text-sm font-semibold text-[#c084fc] flex items-center gap-2">
+                    <Lock className="text-[#c084fc]" /> Potential Vulnerabilities
                   </h3>
-                  <ul className="text-xs text-gray-300 list-disc pl-4">
+                  <ul className="text-xs text-[#d8b4fe] list-disc pl-4">
                     {vulnerabilities.map((v, i) => (
                       <li key={i} className="flex items-center gap-2">
-                        <ArrowRight className="text-blue-400" /> {v}
+                        <ArrowRight className="text-[#a855f7]" /> {v}
                       </li>
                     ))}
                   </ul>
@@ -497,7 +499,7 @@ export default function ContractBuilder() {
               <button
                 onClick={analyzeSecurity}
                 disabled={isAnalyzing || !displayedCode}
-                className="w-full mt-4 p-2 bg-blue-500/20 rounded flex items-center justify-center gap-2 disabled:bg-gray-700"
+                className="w-full mt-4 p-2 bg-[#9333ea]/30 rounded flex items-center justify-center gap-2 disabled:bg-[#2d0047]/50 hover:bg-[#9333ea]/50 transition-all duration-300"
               >
                 {isAnalyzing ? <CircleNotch className="animate-spin" /> : <Bug />}
                 {isAnalyzing ? 'Analyzing...' : 'Run Security Scan'}
@@ -505,32 +507,32 @@ export default function ContractBuilder() {
               <button
                 onClick={downloadAnalysisPDF}
                 disabled={!gasAnalysis && vulnerabilities.length === 0 && securityNotes.length === 0}
-                className="w-full mt-2 p-2 bg-blue-500/20 rounded flex items-center justify-center gap-2 disabled:bg-gray-700"
+                className="w-full mt-2 p-2 bg-[#9333ea]/30 rounded flex items-center justify-center gap-2 disabled:bg-[#2d0047]/50 hover:bg-[#9333ea]/50 transition-all duration-300"
               >
                 <Download /> Download Analysis PDF
               </button>
             </div>
 
-            <div className="bg-gray-900/80 p-6 rounded-xl border border-blue-500/20 shadow-xl">
-              <h2 className="flex items-center gap-2 text-lg font-mono mb-4">
-                <Rocket className="text-blue-400" /> Deployment
+            <div className="bg-[#1a001a] p-6 rounded-xl border border-[#4b0082] shadow-lg">
+              <h2 className="flex items-center gap-2 text-lg font-mono mb-4 text-[#a855f7]">
+                <Rocket className="text-[#a855f7]" /> Deployment
               </h2>
               {!walletConnected ? (
                 <button
                   onClick={connectWallet}
-                  className="w-full p-3 bg-blue-500 rounded-lg flex items-center justify-center gap-2"
+                  className="w-full p-3 bg-[#9333ea] rounded-lg flex items-center justify-center gap-2 hover:bg-[#a855f7] transition-all duration-300"
                 >
                   <Lightning /> Connect Wallet
                 </button>
               ) : (
                 <>
-                  <div className="mb-4 text-sm">
+                  <div className="mb-4 text-sm text-[#c084fc]">
                     Network: {currentChain ? CHAIN_CONFIG[currentChain].chainName : 'Not connected'}
                   </div>
                   <button
                     onClick={deployContract}
                     disabled={isDeploying || !displayedCode}
-                    className="w-full p-3 bg-blue-500 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-700"
+                    className="w-full p-3 bg-[#9333ea] rounded-lg flex items-center justify-center gap-2 disabled:bg-[#2d0047] hover:bg-[#a855f7] transition-all duration-300"
                   >
                     {isDeploying ? <CircleNotch className="animate-spin" /> : <Rocket />}
                     {isDeploying ? 'Deploying...' : 'Deploy Contract'}
@@ -540,13 +542,13 @@ export default function ContractBuilder() {
                       href={currentChain ? `${CHAIN_CONFIG[currentChain].blockExplorerUrls[0]}/address/${deployedAddress}` : '#'}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 block text-blue-400 text-sm flex items-center gap-2"
+                      className="mt-2 block text-[#a855f7] text-sm flex items-center gap-2 hover:text-[#d8b4fe] transition-all duration-200"
                     >
                       <Link /> View on Explorer: {deployedAddress}
                     </a>
                   )}
                   {deploymentError && (
-                    <div className="mt-2 text-red-400 text-sm">{deploymentError}</div>
+                    <div className="mt-2 text-[#c084fc] text-sm">{deploymentError}</div>
                   )}
                 </>
               )}
