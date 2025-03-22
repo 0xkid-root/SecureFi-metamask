@@ -1,97 +1,137 @@
+// ContractBuilder.tsx
 "use client";
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
-import { parseEther } from 'viem';
+import { ethers } from 'ethers';
 import {
-  FileCode,
-  Robot,
-  CircleNotch,
-  Copy,
-  Check,
-  Rocket,
-  Link,
-  Code,
-  Lightning,
-  Shield,
-  ArrowRight,
-  Info
+  FileCode, Robot, CircleNotch, Copy, Check, Rocket, Link, Code,
+  Lightning, Shield, ArrowRight, Lock, GasPump, Bug, Download
 } from 'phosphor-react';
-import { useAccount, useConnect, usePublicClient, useWalletClient } from 'wagmi';
 import { CONTRACT_TEMPLATES, ContractTemplate } from './templates';
-import { CHAIN_CONFIG } from '@/utils/web3';
+import { connectWallet, CHAIN_CONFIG } from '@/utils/web3';
 import React from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import Image from 'next/image';
-import { Hex, Hash } from 'viem';
+import jsPDF from 'jspdf';
 
+// Initialize Mistral client
 const mistralClient = new Mistral({
   apiKey: process.env.NEXT_PUBLIC_MISTRAL_API_KEY!
 });
 
+// Enhanced response schema
 const ContractSchema = z.object({
   code: z.string(),
   features: z.array(z.string()),
-  securityNotes: z.array(z.string())
+  securityNotes: z.array(z.string()),
+  gasAnalysis: z.object({
+    estimatedDeploymentCost: z.number(),
+    functionCosts: z.record(z.number())
+  }).optional(),
+  potentialVulnerabilities: z.array(z.string()).optional()
 });
 
-interface AbiItem {
-  type: string;
-  inputs?: Array<{ type: string; name: string }>;
+// Parameter type definitions for templates
+interface ParamType {
+  name: string;
+  type: 'string' | 'uint256' | 'address';
 }
 
+const TEMPLATE_PARAM_TYPES: Record<string, ParamType[]> = {
+  'ERC20 Token': [
+    { name: 'name', type: 'string' },
+    { name: 'symbol', type: 'string' },
+    { name: 'initialSupply', type: 'uint256' }
+  ],
+  'NFT Collection': [
+    { name: 'name', type: 'string' },
+    { name: 'symbol', type: 'string' },
+    { name: 'baseURI', type: 'string' }
+  ],
+  'Custom Contract': [] // No default params
+};
+
 export default function ContractBuilder() {
+  // Core state
   const [selectedTemplate, setSelectedTemplate] = useState<ContractTemplate | null>(null);
   const [customFeatures, setCustomFeatures] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
+  const [manualCode, setManualCode] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contractParams, setContractParams] = useState<Record<string, string>>({});
-  const [copySuccess, setCopySuccess] = useState(false);
+  const [optimizationLevel, setOptimizationLevel] = useState<'none' | 'basic' | 'advanced'>('basic');
+
+  // Deployment state
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployedAddress, setDeployedAddress] = useState<string | null>(null);
   const [walletConnected, setWalletConnected] = useState(false);
   const [currentChain, setCurrentChain] = useState<keyof typeof CHAIN_CONFIG | null>(null);
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
+
+  // Advanced analysis state
   const [securityNotes, setSecurityNotes] = useState<string[]>([]);
-  const [showFeatures, setShowFeatures] = useState(false);
-  const [transactionHash, setTransactionHash] = useState<Hash | null>(null);
-  const displayedCode = generatedCode;
+  const [gasAnalysis, setGasAnalysis] = useState<{ estimatedDeploymentCost: number; functionCosts: Record<string, number> } | null>(null);
+  const [vulnerabilities, setVulnerabilities] = useState<string[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const { chain, isConnected } = useAccount();
-  const { connect, connectors } = useConnect();
-  const publicClient = usePublicClient();
-  const { data: walletClient } = useWalletClient();
+  const displayedCode = generatedCode || manualCode;
 
-  useEffect(() => {
-    setWalletConnected(isConnected);
-    if (chain) {
-      const chainConfig = Object.entries(CHAIN_CONFIG).find(
-        ([_, config]) => config.chainId.toLowerCase() === ('0x' + chain.id.toString(16)).toLowerCase()
-      );
-      if (chainConfig) {
-        setCurrentChain(chainConfig[0] as keyof typeof CHAIN_CONFIG);
-      } else {
-        setCurrentChain(null);
+  // Network detection
+  const detectCurrentNetwork = async (): Promise<keyof typeof CHAIN_CONFIG | null> => {
+    try {
+      if (!window.ethereum) return null;
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
+      const chainId = '0x' + network.chainId.toString(16);
+      
+      for (const [key, config] of Object.entries(CHAIN_CONFIG)) {
+        if (chainId.toLowerCase() === config.chainId.toLowerCase()) {
+          setCurrentChain(key as keyof typeof CHAIN_CONFIG);
+          return key as keyof typeof CHAIN_CONFIG;
+        }
       }
-    } else {
       setCurrentChain(null);
+      return null;
+    } catch (err) {
+      console.error('Network detection error:', err);
+      setError('Failed to detect network');
+      return null;
     }
-  }, [isConnected, chain]);
+  };
 
+  // Wallet connection handling
+  useEffect(() => {
+    const checkWallet = async () => {
+      if (window.ethereum) {
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' }) as string[];
+        if (accounts.length > 0) {
+          setWalletConnected(true);
+          await detectCurrentNetwork();
+        }
+      }
+    };
+    checkWallet();
+
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', (accounts: string[]) => {
+        setWalletConnected(accounts.length > 0);
+        detectCurrentNetwork();
+      });
+      window.ethereum.on('chainChanged', detectCurrentNetwork);
+    }
+  }, []);
+
+  // Template selection effect
   useEffect(() => {
     if (selectedTemplate?.defaultParams) {
       setContractParams(selectedTemplate.defaultParams);
       setGeneratedCode(selectedTemplate.baseCode);
-    } else {
-      setContractParams({});
-      setGeneratedCode('');
     }
   }, [selectedTemplate]);
 
+  // Generate enhanced contract
   const generateContract = async () => {
     if (!selectedTemplate) return;
     setIsGenerating(true);
@@ -103,41 +143,22 @@ export default function ContractBuilder() {
         messages: [
           {
             role: "system",
-            content: `You are an expert Solidity developer. Generate a secure and optimized smart contract based on these requirements:
-
-        Important Rules:
-        1. Use Solidity version 0.8.19
-        2. DO NOT use ANY external imports or libraries
-        3. Include all necessary functionality directly in the contract
-        4. Add proper access control and safety checks
-        5. Include events for all state changes
-        6. Implement comprehensive security measures
-        7. Add gas optimizations
-        8. Return response in exact JSON format
-        
-        Security Considerations:
-        - Include reentrancy guards where needed
-        - Add proper access control
-        - Implement input validation
-        - Add checks for integer overflow
-        - Validate addresses
-        - Include event emissions
-        - Handle edge cases`
+            content: `You are an expert Solidity developer with security auditing experience. Generate a secure, optimized smart contract with:
+            - Solidity 0.8.19
+            - No external libraries
+            - Comprehensive security measures (reentrancy guards, overflow checks, etc.)
+            - Gas optimizations based on level: ${optimizationLevel}
+            - Detailed gas analysis
+            - Vulnerability assessment
+            Return in JSON format with code, features, securityNotes, gasAnalysis, and potentialVulnerabilities`
           },
           {
             role: "user",
-            content: `Generate a contract with these specifications:
-        Template: ${selectedTemplate.name}
-        Base Code: ${selectedTemplate.baseCode || 'Create new contract'}
-        Custom Features: ${customFeatures || 'Standard features'}
-        Parameters: ${JSON.stringify(contractParams)}
-        
-        Return in this exact format:
-        {
-          "code": "complete solidity code",
-          "features": ["list of implemented features"],
-          "securityNotes": ["list of security measures implemented"]
-        }`
+            content: `Template: ${selectedTemplate.name}
+            Base Code: ${selectedTemplate.baseCode || 'Create new'}
+            Features: ${customFeatures || 'Standard'}
+            Parameters: ${JSON.stringify(contractParams)}
+            Optimization Level: ${optimizationLevel}`
           }
         ],
         responseFormat: { type: "json_object" },
@@ -145,464 +166,394 @@ export default function ContractBuilder() {
         maxTokens: 4096
       });
 
-      const responseText = response.choices?.[0]?.message?.content || '';
-      const parsedResponse = JSON.parse(typeof responseText === 'string' ? responseText : '');
-      const validatedResponse = ContractSchema.parse(parsedResponse);
+      const parsedResponse = JSON.parse(response.choices?.[0]?.message?.content as string || '{}');
+      const validated = ContractSchema.parse(parsedResponse);
 
-      setGeneratedCode(validatedResponse.code);
-      setSecurityNotes(validatedResponse.securityNotes);
-    } catch (error: unknown) {
-      console.error('Generation failed:', error);
-      setError('Failed to generate contract. Please try again.');
-      if (selectedTemplate.baseCode) {
-        setGeneratedCode(selectedTemplate.baseCode);
-      }
+      setGeneratedCode(validated.code);
+      setSecurityNotes(validated.securityNotes);
+      setGasAnalysis(validated.gasAnalysis || null);
+      setVulnerabilities(validated.potentialVulnerabilities || []);
+    } catch (err) {
+      console.error('Generation error:', err);
+      setError('Failed to generate contract');
+      setGeneratedCode(selectedTemplate.baseCode || '');
     } finally {
       setIsGenerating(false);
     }
   };
 
+  // Security analysis
+  const analyzeSecurity = async () => {
+    if (!displayedCode) return;
+    setIsAnalyzing(true);
+
+    try {
+      const response = await mistralClient.chat.complete({
+        model: "mistral-large-latest",
+        messages: [
+          {
+            role: "system",
+            content: "Perform a security audit on this Solidity contract. Identify potential vulnerabilities and suggest improvements."
+          },
+          { role: "user", content: displayedCode }
+        ]
+      });
+      
+      const analysis = response.choices?.[0]?.message?.content as string || '';
+      setVulnerabilities(analysis.split('\n').filter((line: string) => line.trim()));
+    } catch (err) {
+      setError('Security analysis failed');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Deploy contract
   const deployContract = async () => {
-    if (!displayedCode || !isConnected || !walletClient || !publicClient) return;
+    if (!displayedCode || !walletConnected) return;
 
     setIsDeploying(true);
     setDeploymentError(null);
 
     try {
-      if (!chain || (
-        ('0x' + chain.id.toString(16)).toLowerCase() !== CHAIN_CONFIG.electroneumMainnet.chainId.toLowerCase() &&
-        ('0x' + chain.id.toString(16)).toLowerCase() !== CHAIN_CONFIG.electroneumTestnet.chainId.toLowerCase()
-      )) {
-        throw new Error('Please switch to Electroneum Network (Mainnet or Testnet) to deploy contracts');
+      const { signer } = await connectWallet();
+      const chain = await detectCurrentNetwork();
+      if (!chain || (chain !== 'electroneumMainnet' && chain !== 'electroneumTestnet')) {
+        throw new Error('Switch to Electroneum Network');
       }
 
-      const response = await fetch('/api/compile-contract', {
+      const compileResponse = await fetch('/api/compile-contract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceCode: displayedCode }),
+        body: JSON.stringify({ sourceCode: displayedCode })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        const errorDetails = errorData.details || (await response.text());
-        throw new Error(`Compilation failed: ${errorDetails}`);
-      }
+      if (!compileResponse.ok) throw new Error('Compilation failed');
+      const { abi, bytecode } = await compileResponse.json();
 
-      const { abi, bytecode }: { abi: AbiItem[]; bytecode: string } = await response.json();
-      const constructorAbi = abi.find((item) => item.type === 'constructor');
-      const constructorArgs = constructorAbi ? Object.values(contractParams).map((value, index) => {
-        const input = constructorAbi?.inputs?.[index];
-        if (!input) return value;
-        switch (input.type) {
+      const factory = new ethers.ContractFactory(abi, bytecode, signer);
+
+      // Process constructor arguments based on template parameter types
+      const paramTypes = selectedTemplate ? TEMPLATE_PARAM_TYPES[selectedTemplate.name] || [] : [];
+      const args = Object.entries(contractParams).map(([key, val]) => {
+        const param = paramTypes.find(p => p.name === key);
+        if (!param) return val; // Fallback to raw value if type not found
+
+        switch (param.type) {
+          case 'string':
+            return val; // Pass strings as-is
           case 'uint256':
-            return parseEther(value.toString());
+            return ethers.parseUnits(val, 18); // Parse numbers with 18 decimals
           case 'address':
-            return value;
+            if (!ethers.isAddress(val)) throw new Error(`Invalid address: ${val}`);
+            return val;
           default:
-            return value;
+            return val;
         }
-      }) : [];
-
-      // Deploy the contract using viem's walletClient
-      const hash = await walletClient.deployContract({
-        abi,
-        bytecode: bytecode as Hex,
-        args: constructorArgs,
       });
 
-      setTransactionHash(hash);
-
-      // Wait for the transaction to be confirmed
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      if (receipt.contractAddress) {
-        setDeployedAddress(receipt.contractAddress);
-      } else {
-        throw new Error('Contract deployment failed: No contract address in receipt');
-      }
-
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Deployment failed';
-      console.error('Deployment failed:', error);
-      setDeploymentError(errorMessage);
-      setIsDeploying(false);
+      const contract = await factory.deploy(...args);
+      const receipt = await contract.deploymentTransaction()?.wait();
+      
+      setDeployedAddress(receipt?.contractAddress || '');
+    } catch (err: unknown) {
+      setDeploymentError((err as Error).message);
     } finally {
       setIsDeploying(false);
     }
   };
 
-  const getExplorerUrl = () => {
-    if (!currentChain || !deployedAddress) return null;
-    const baseUrl = CHAIN_CONFIG[currentChain].blockExplorerUrls[0];
-    return `${baseUrl}/address/${deployedAddress}`; // Changed to /address/ since deployedAddress is now the contract address
+  // Download contract as file
+  const downloadContract = () => {
+    if (!displayedCode) return;
+    const blob = new Blob([displayedCode], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${selectedTemplate?.name || 'Custom'}_Contract.sol`;
+    link.click();
+    window.URL.revokeObjectURL(url);
   };
 
-  const handleConnectWallet = () => {
-    try {
-      connect({ connector: connectors[0] });
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to connect wallet';
-      setError(errorMessage);
-    }
-  };
+  // Download analysis as PDF
+  const downloadAnalysisPDF = () => {
+    if (!gasAnalysis && vulnerabilities.length === 0 && securityNotes.length === 0) return;
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
+    const doc = new jsPDF();
+    let yOffset = 10;
+
+    doc.setFontSize(16);
+    doc.text('Contract Analysis Report', 10, yOffset);
+    yOffset += 10;
+
+    doc.setFontSize(12);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 10, yOffset);
+    yOffset += 10;
+
+    if (securityNotes.length > 0) {
+      doc.setFontSize(14);
+      doc.text('Security Notes', 10, yOffset);
+      yOffset += 10;
+      securityNotes.forEach((note, index) => {
+        doc.setFontSize(10);
+        doc.text(`${index + 1}. ${note}`, 10, yOffset);
+        yOffset += 6;
+      });
     }
+
+    if (gasAnalysis) {
+      yOffset += 5;
+      doc.setFontSize(14);
+      doc.text('Gas Analysis', 10, yOffset);
+      yOffset += 10;
+      doc.setFontSize(10);
+      doc.text(`Estimated Deployment Cost: ${gasAnalysis.estimatedDeploymentCost} gas`, 10, yOffset);
+      yOffset += 6;
+      Object.entries(gasAnalysis.functionCosts).forEach(([func, cost]) => {
+        doc.text(`${func}: ${cost} gas`, 10, yOffset);
+        yOffset += 6;
+      });
+    }
+
+    if (vulnerabilities.length > 0) {
+      yOffset += 5;
+      doc.setFontSize(14);
+      doc.text('Potential Vulnerabilities', 10, yOffset);
+      yOffset += 10;
+      vulnerabilities.forEach((vuln, index) => {
+        doc.setFontSize(10);
+        doc.text(`${index + 1}. ${vuln}`, 10, yOffset);
+        yOffset += 6;
+      });
+    }
+
+    doc.save('Contract_Analysis_Report.pdf');
   };
 
   return (
-    <div className="min-h-screen py-12 bg-black text-white">
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="mb-8">
-          <div className="inline-block mb-3 px-4 py-1 rounded-full bg-purple-600/20 border border-purple-600/30">
-            <span className="text-purple-400 text-sm font-semibold">Smart Contract Development</span>
-          </div>
-          <h1 className="text-3xl font-mono font-bold mb-4 text-purple-400">Smart Contract Builder</h1>
-          <p className="text-purple-300">Generate and deploy secure smart contracts on Electroneum Network</p>
-          
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="mt-4 bg-red-600/20 border border-red-600/30 text-red-400 px-4 py-2 rounded-lg"
-              >
-                {error}
-              </motion.div>
-            )}
-          </AnimatePresence>
-          {deployedAddress && (
+    <div className="min-h-screen py-12 bg-gradient-to-br from-zinc-900 to-black text-white">
+      <div className="max-w-7xl mx-auto px-4">
+        <motion.h1 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-4xl font-mono font-bold mb-8 text-blue-400 text-center"
+        >
+          Advanced Contract Builder
+        </motion.h1>
+
+        <AnimatePresence>
+          {error && (
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-4 bg-purple-600/20 border border-purple-600/30 text-purple-400 px-4 py-3 rounded-lg"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="mb-4 p-2 bg-red-500/20 text-red-400 rounded"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold mb-1">Contract deployed successfully!</p>
-                  <p className="text-sm font-mono">{deployedAddress}</p>
-                </div>
-                <a
-                  href={getExplorerUrl() || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors duration-200"
-                >
-                  <Link size={20} weight="bold" />
-                  View on Explorer
-                </a>
-              </div>
+              {error}
             </motion.div>
           )}
-        </div>
+        </AnimatePresence>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Left Column - Templates and Parameters */}
-          <div className="flex flex-col space-y-4">
-            <div className="bg-purple-950/30 rounded-lg border border-purple-900 hover:border-purple-600/50 transition-colors duration-300 shadow-lg p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <Robot className="text-purple-400" size={20} weight="duotone" />
-                <span className="font-mono text-white">Contract Templates</span>
-              </div>
-
-              <div className="space-y-4">
-                {CONTRACT_TEMPLATES.map((template) => (
-                  <button
-                    key={template.name}
-                    onClick={() => setSelectedTemplate(template)}
-                    className={`w-full p-4 rounded-lg border transition-all duration-200 text-left hover:shadow-md
-                      ${selectedTemplate?.name === template.name
-                        ? 'border-purple-600 bg-purple-600/20 text-white shadow-purple-600/20'
-                        : 'border-purple-900 hover:border-purple-600/50'
-                      }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={`${selectedTemplate?.name === template.name ? 'text-purple-400' : 'text-purple-300'}`}>
-                        {template.icon}
-                      </div>
-                      <span className="font-semibold text-white">{template.name}</span>
+        <div className="grid md:grid-cols-3 gap-6">
+          {/* Left Panel - Controls */}
+          <motion.div 
+            className="md:col-span-1 space-y-6"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+          >
+            <div className="bg-gray-900/80 p-6 rounded-xl border border-blue-500/20 shadow-xl">
+              <h2 className="flex items-center gap-2 text-lg font-mono mb-4">
+                <Robot className="text-blue-400" /> Templates
+              </h2>
+              {CONTRACT_TEMPLATES.map(template => (
+                <button
+                  key={template.name}
+                  onClick={() => setSelectedTemplate(template)}
+                  className={`w-full p-4 mb-2 rounded-lg border ${selectedTemplate?.name === template.name 
+                    ? 'border-blue-500 bg-blue-500/10' 
+                    : 'border-gray-700 hover:border-blue-400/50'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    {template.icon}
+                    <div className="text-left">
+                      <div className="font-semibold">{template.name}</div>
+                      <div className="text-xs text-gray-400">{template.description}</div>
                     </div>
-                    <p className="text-xs text-purple-300 mb-2">{template.description}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {template.features.map((feature) => (
-                        <span
-                          key={feature}
-                          className="text-xs px-2 py-1 rounded-full bg-purple-600/20 text-purple-300 border border-purple-600/30"
-                        >
-                          {feature}
-                        </span>
-                      ))}
-                    </div>
-                  </button>
-                ))}
-              </div>
+                  </div>
+                </button>
+              ))}
             </div>
-
-            <button
-              onClick={generateContract}
-              disabled={!selectedTemplate || isGenerating}
-              className={`w-full py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all duration-200 ${isGenerating || !selectedTemplate
-                ? 'bg-purple-950 text-purple-400 cursor-not-allowed'
-                : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20'
-                }`}
-            >
-              {isGenerating ? (
-                <>
-                  <CircleNotch className="animate-spin" size={20} weight="bold" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Robot size={20} weight="duotone" />
-                  Generate Contract
-                </>
-              )}
-            </button>
 
             {selectedTemplate && (
-              <div className="bg-purple-950/30 rounded-lg border border-purple-900 hover:border-purple-600/50 transition-colors duration-300 shadow-lg p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <Code className="text-purple-400" size={20} weight="duotone" />
-                  <span className="font-mono text-white">Contract Parameters</span>
-                </div>
-
-                <div className="p-6">
-                  {Object.entries(contractParams).map(([key, value]) => (
-                    <div key={key} className="mb-4">
-                      <label className="text-sm text-purple-300 mb-1 block">
-                        {key.charAt(0).toUpperCase() + key.slice(1)}
-                      </label>
-                      <input
-                        type="text"
-                        value={value}
-                        onChange={(e) =>
-                          setContractParams((prev) => ({
-                            ...prev,
-                            [key]: e.target.value,
-                          }))
-                        }
-                        className="w-full bg-transparent rounded-lg border border-purple-900 p-2 text-white focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600/50 transition-all duration-200"
-                      />
-                    </div>
-                  ))}
-                  <div>
-                    <label className="text-sm text-purple-300 mb-1 block">
-                      Custom Features
-                    </label>
-                    <textarea
-                      value={customFeatures}
-                      onChange={(e) => setCustomFeatures(e.target.value)}
-                      placeholder="Describe additional features (e.g., add a whitelist, implement a timelock)..."
-                      className="w-full h-24 bg-transparent rounded-lg border border-purple-900 p-2 text-white resize-none focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600/50 transition-all duration-200"
+              <div className="bg-gray-900/80 p-6 rounded-xl border border-blue-500/20 shadow-xl">
+                <h2 className="flex items-center gap-2 text-lg font-mono mb-4">
+                  <Code className="text-blue-400" /> Parameters
+                </h2>
+                {Object.entries(contractParams).map(([key, value]) => (
+                  <div key={key} className="mb-4">
+                    <label className="text-sm text-gray-400">{key}</label>
+                    <input
+                      value={value}
+                      onChange={e => setContractParams(prev => ({ ...prev, [key]: e.target.value }))}
+                      className="w-full mt-1 p-2 bg-gray-800 rounded border border-gray-700 focus:border-blue-500"
                     />
                   </div>
-                </div>
+                ))}
+                <textarea
+                  value={customFeatures}
+                  onChange={e => setCustomFeatures(e.target.value)}
+                  placeholder="Custom features..."
+                  className="w-full h-24 p-2 bg-gray-800 rounded border border-gray-700 focus:border-blue-500"
+                />
+                <select
+                  value={optimizationLevel}
+                  onChange={e => setOptimizationLevel(e.target.value as 'none' | 'basic' | 'advanced')}
+                  className="w-full mt-2 p-2 bg-gray-800 rounded border border-gray-700"
+                >
+                  <option value="none">No Optimization</option>
+                  <option value="basic">Basic Optimization</option>
+                  <option value="advanced">Advanced Optimization</option>
+                </select>
+                <button
+                  onClick={generateContract}
+                  disabled={!selectedTemplate || isGenerating}
+                  className="w-full mt-4 p-3 bg-blue-500 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-700"
+                >
+                  {isGenerating ? <CircleNotch className="animate-spin" /> : <Robot />}
+                  {isGenerating ? 'Generating...' : 'Generate'}
+                </button>
               </div>
             )}
-          </div>
+          </motion.div>
 
-          {/* Right Column - Code Display and Deployment */}
-          <div className="flex flex-col">
-            <div className="flex-1 bg-purple-950/30 rounded-lg border border-purple-900 hover:border-purple-600/50 transition-colors duration-300 shadow-lg">
-              <div className="p-4 border-b border-purple-900 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <FileCode className="text-purple-400" size={20} weight="duotone" />
-                  <span className="font-mono text-white">Generated Contract</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {displayedCode && (
-                    <button
-                      onClick={() => setShowFeatures(!showFeatures)}
-                      className="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1 transition-colors duration-200 px-2 py-1 rounded-md hover:bg-purple-600/20"
-                    >
-                      <Info size={16} weight="bold" />
-                      {showFeatures ? 'Show Code' : 'Show Features'}
-                    </button>
-                  )}
-                  {displayedCode && !showFeatures && (
-                    <button
-                      onClick={() => copyToClipboard(displayedCode)}
-                      className="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1 transition-colors duration-200 px-2 py-1 rounded-md hover:bg-purple-600/20"
-                    >
-                      {copySuccess ? <Check size={16} weight="bold" /> : <Copy size={16} weight="bold" />}
-                      {copySuccess ? 'Copied!' : 'Copy Code'}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="code-container">
-                {displayedCode ? (
-                  showFeatures ? (
-                    <div className="p-6 h-full overflow-auto custom-scrollbar">
-                      <h3 className="font-mono text-sm text-purple-400 mb-4">Contract Features</h3>
-                      <div className="flex flex-wrap gap-2 mb-6">
-                        {selectedTemplate?.features.map((feature) => (
-                          <span
-                            key={feature}
-                            className="text-xs px-2 py-1 rounded-full bg-purple-600/20 text-purple-300 border border-purple-600/30"
-                          >
-                            {feature}
-                          </span>
-                        ))}
-                      </div>
-                      {securityNotes.length > 0 && (
-                        <div>
-                          <h3 className="font-mono text-sm text-purple-400 mb-2">Security Notes</h3>
-                          <ul className="text-sm text-purple-300 space-y-2">
-                            {securityNotes.map((note, index) => (
-                              <li key={index} className="flex items-start gap-2">
-                                <ArrowRight className="text-purple-400 mt-0.5 flex-shrink-0" size={12} />
-                                <span>{note}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <SyntaxHighlighter
-                      language="solidity"
-                      style={vscDarkPlus}
-                      showLineNumbers
-                      wrapLines
-                      customStyle={{
-                        margin: 0,
-                        padding: '16px',
-                        background: 'transparent',
-                        height: '100%',
-                        overflow: 'auto',
-                        fontSize: '14px',
-                      }}
-                    >
-                      {displayedCode}
-                    </SyntaxHighlighter>
-                  )
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-purple-300">
-                    <div className="relative">
-                      <div className="absolute inset-0 bg-purple-600/20 rounded-full blur-md"></div>
-                      <Robot size={48} className="mb-4 relative z-10 text-purple-400" weight="duotone" />
-                    </div>
-                    <p>Select a template and generate your contract to see the code here</p>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {displayedCode && (
-              <div className="border-t border-purple-900 p-4 bg-purple-950/30 rounded-b-lg shadow-lg">
-                {!walletConnected ? (
-                  <button
-                    onClick={handleConnectWallet}
-                    className="w-full py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white transition-colors duration-200 shadow-lg shadow-purple-600/20"
-                  >
-                    <Lightning size={20} weight="fill" />
-                    Connect Wallet to Deploy
+          {/* Center Panel - Code */}
+          <motion.div 
+            className="md:col-span-1 flex flex-col"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="bg-gray-900/80 rounded-xl border border-blue-500/20 shadow-xl flex-1 flex flex-col">
+              <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+                <span className="flex items-center gap-2 font-mono">
+                  <FileCode className="text-blue-400" /> Code
+                </span>
+                <div className="flex gap-2">
+                  <button onClick={analyzeSecurity} className="p-2 hover:bg-blue-500/10 rounded" title="Analyze Security">
+                    <Bug className="text-blue-400" />
                   </button>
-                ) : (
-                  <div className="space-y-4">
-                    {currentChain ? (
-                      <div className="text-sm flex items-center gap-2 bg-purple-600/20 border border-purple-600/30 rounded-lg px-3 py-2">
-                        <span className="text-purple-300">Network:</span>
-                        <span className="text-purple-400 font-mono flex items-center gap-1">
-                          <Image
-                            src={CHAIN_CONFIG[currentChain].iconPath}
-                            alt={CHAIN_CONFIG[currentChain].chainName}
-                            width={16}
-                            height={16}
-                            className="rounded-full"
-                          />
-                          {CHAIN_CONFIG[currentChain].chainName}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-yellow-400 bg-yellow-600/20 border border-yellow-600/30 rounded-lg px-3 py-2">
-                        Please connect to Electroneum Network (Mainnet or Testnet) to deploy
-                      </div>
-                    )}
-
-                    <button
-                      onClick={deployContract}
-                      disabled={isDeploying || !currentChain || (currentChain !== 'electroneumMainnet' && currentChain !== 'electroneumTestnet')}
-                      className={`w-full py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors duration-200
-                        ${isDeploying || !currentChain || (currentChain !== 'electroneumMainnet' && currentChain !== 'electroneumTestnet')
-                          ? 'bg-purple-950 text-purple-400 cursor-not-allowed'
-                          : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20'
-                        }`}
-                    >
-                      {isDeploying ? (
-                        <>
-                          <CircleNotch className="animate-spin" size={20} weight="bold" />
-                          Deploying Contract...
-                        </>
-                      ) : (
-                        <>
-                          <Rocket size={20} weight="fill" />
-                          Deploy Contract
-                        </>
-                      )}
-                    </button>
-                    
-                    {deploymentError && (
-                      <div className="mt-4 text-red-400 text-sm bg-red-600/20 border border-red-600/30 rounded-lg p-3">
-                        {deploymentError}
-                      </div>
-                    )}
-                    
-                    {securityNotes.length > 0 && !showFeatures && (
-                      <div className="mt-4 bg-purple-600/10 border border-purple-600/30 rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Shield className="text-purple-400" size={16} weight="fill" />
-                          <h3 className="text-sm font-semibold text-purple-400">Security Notes</h3>
-                        </div>
-                        <ul className="text-xs text-purple-300 space-y-1">
-                          {securityNotes.map((note, index) => (
-                            <li key={index} className="flex items-start gap-2">
-                              <ArrowRight className="text-purple-400 mt-0.5 flex-shrink-0" size={12} />
-                              <span>{note}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  <button onClick={downloadContract} className="p-2 hover:bg-blue-500/10 rounded" title="Download Contract">
+                    <Download className="text-blue-400" />
+                  </button>
+                  <button 
+                    onClick={() => navigator.clipboard.writeText(displayedCode)} 
+                    className="p-2 hover:bg-blue-500/10 rounded" 
+                    title="Copy Code"
+                  >
+                    {displayedCode ? <Check className="text-blue-400" /> : <Copy className="text-blue-400" />}
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
+              <textarea
+                value={displayedCode}
+                onChange={e => { setManualCode(e.target.value); setGeneratedCode(''); }}
+                className="flex-1 p-4 font-mono bg-transparent border-none resize-none focus:outline-none"
+                placeholder="Your contract code will appear here..."
+              />
+            </div>
+          </motion.div>
+
+          {/* Right Panel - Analysis & Deployment */}
+          <motion.div 
+            className="md:col-span-1 space-y-6"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+          >
+            <div className="bg-gray-900/80 p-6 rounded-xl border border-blue-500/20 shadow-xl">
+              <h2 className="flex items-center gap-2 text-lg font-mono mb-4">
+                <Shield className="text-blue-400" /> Analysis
+              </h2>
+              {gasAnalysis && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <GasPump className="text-blue-400" /> Gas Analysis
+                  </h3>
+                  <pre className="text-xs text-gray-300">{JSON.stringify(gasAnalysis, null, 2)}</pre>
+                </div>
+              )}
+              {vulnerabilities.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-red-400 flex items-center gap-2">
+                    <Lock className="text-red-400" /> Potential Vulnerabilities
+                  </h3>
+                  <ul className="text-xs text-gray-300 list-disc pl-4">
+                    {vulnerabilities.map((v, i) => (
+                      <li key={i} className="flex items-center gap-2">
+                        <ArrowRight className="text-blue-400" /> {v}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <button
+                onClick={analyzeSecurity}
+                disabled={isAnalyzing || !displayedCode}
+                className="w-full mt-4 p-2 bg-blue-500/20 rounded flex items-center justify-center gap-2 disabled:bg-gray-700"
+              >
+                {isAnalyzing ? <CircleNotch className="animate-spin" /> : <Bug />}
+                {isAnalyzing ? 'Analyzing...' : 'Run Security Scan'}
+              </button>
+              <button
+                onClick={downloadAnalysisPDF}
+                disabled={!gasAnalysis && vulnerabilities.length === 0 && securityNotes.length === 0}
+                className="w-full mt-2 p-2 bg-blue-500/20 rounded flex items-center justify-center gap-2 disabled:bg-gray-700"
+              >
+                <Download /> Download Analysis PDF
+              </button>
+            </div>
+
+            <div className="bg-gray-900/80 p-6 rounded-xl border border-blue-500/20 shadow-xl">
+              <h2 className="flex items-center gap-2 text-lg font-mono mb-4">
+                <Rocket className="text-blue-400" /> Deployment
+              </h2>
+              {!walletConnected ? (
+                <button
+                  onClick={connectWallet}
+                  className="w-full p-3 bg-blue-500 rounded-lg flex items-center justify-center gap-2"
+                >
+                  <Lightning /> Connect Wallet
+                </button>
+              ) : (
+                <>
+                  <div className="mb-4 text-sm">
+                    Network: {currentChain ? CHAIN_CONFIG[currentChain].chainName : 'Not connected'}
+                  </div>
+                  <button
+                    onClick={deployContract}
+                    disabled={isDeploying || !displayedCode}
+                    className="w-full p-3 bg-blue-500 rounded-lg flex items-center justify-center gap-2 disabled:bg-gray-700"
+                  >
+                    {isDeploying ? <CircleNotch className="animate-spin" /> : <Rocket />}
+                    {isDeploying ? 'Deploying...' : 'Deploy Contract'}
+                  </button>
+                  {deployedAddress && (
+                    <a
+                      href={currentChain ? `${CHAIN_CONFIG[currentChain].blockExplorerUrls[0]}/address/${deployedAddress}` : '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 block text-blue-400 text-sm flex items-center gap-2"
+                    >
+                      <Link /> View on Explorer: {deployedAddress}
+                    </a>
+                  )}
+                  {deploymentError && (
+                    <div className="mt-2 text-red-400 text-sm">{deploymentError}</div>
+                  )}
+                </>
+              )}
+            </div>
+          </motion.div>
         </div>
       </div>
-      <style jsx>{`
-        .code-container {
-          position: relative;
-          width: 100%;
-          height: 600px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background-color: rgba(107, 70, 193, 0.3);
-          border-radius: 3px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background-color: rgba(107, 70, 193, 0.5);
-        }
-      `}</style>
     </div>
   );
 }
