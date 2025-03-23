@@ -1,3 +1,4 @@
+/** @format */
 'use client';
 import '@/app/globals.css';
 import { useEffect, useState } from 'react';
@@ -7,12 +8,12 @@ import { motion } from 'framer-motion';
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from 'wagmi';
 import { SignOut, List, X, CaretDown, CaretUp, Lightning, GithubLogo, TwitterLogo } from 'phosphor-react';
 import Logo from '/public/logo.svg';
-import { electroneumMainnet, electroneumTestnet } from '@/utils/web3-config';
+import { CHAIN_CONFIG } from '@/utils/web3-config'; // Import CHAIN_CONFIG
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
-  const [isClient, setIsClient] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   const { address } = useAccount();
   const { connect, connectors } = useConnect();
@@ -22,7 +23,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const currentChain = chains.find((c) => c.id === chainId);
 
   useEffect(() => {
-    setIsClient(true);
+    setIsMounted(true);
   }, []);
 
   useEffect(() => {
@@ -59,6 +60,12 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
+  // Helper to get iconPath by chain ID
+  const getIconPath = (chainId: number) => {
+    const chainConfig = Object.values(CHAIN_CONFIG).find((chain) => chain.id === chainId);
+    return chainConfig?.iconPath || '/chains/electroneum.png'; // Fallback
+  };
+
   return (
     <>
       <nav className="fixed w-full z-50 border-b border-purple-900/60 bg-black/90 backdrop-blur-xl shadow-md shadow-purple-900/10">
@@ -89,96 +96,94 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               <NavLink href="/w3hackHub">W3HackHub</NavLink>
               <NavLink href="/profile">Profile</NavLink>
 
-              {isClient ? (
-                address ? (
-                  <>
-                    <div className="relative ml-4" id="chain-switcher">
-                      <button
-                        onClick={() => !isPending && setIsChainMenuOpen(!isChainMenuOpen)}
-                        className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
-                          isPending
-                            ? 'bg-purple-950 cursor-not-allowed'
-                            : 'bg-purple-950/50 border border-purple-900 hover:border-purple-600 hover:bg-purple-950/70'
-                        } transition-all duration-200`}
-                        disabled={isPending}
-                      >
-                        {currentChain && (
-                          <div className="relative">
-                            <div className="absolute inset-0 bg-purple-600/20 rounded-full blur-[5px]"></div>
-                            <Image
-                              src="/chains/electroneum.png"
-                              alt={currentChain.name}
-                              width={20}
-                              height={20}
-                              className="rounded-full relative z-10"
-                            />
-                          </div>
-                        )}
-                        <span className="text-sm font-medium text-purple-300">
-                          {isPending ? 'Switching...' : currentChain?.name || 'Select Network'}
-                        </span>
-                        {isChainMenuOpen ? (
-                          <CaretUp className="w-4 h-4 text-purple-400" />
-                        ) : (
-                          <CaretDown className="w-4 h-4 text-purple-400" />
-                        )}
-                      </button>
-
-                      {isChainMenuOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="absolute right-0 mt-2 w-48 rounded-lg bg-purple-950/90 backdrop-blur-lg border border-purple-900 shadow-lg shadow-purple-900/20 py-1 overflow-hidden"
-                        >
-                          {[electroneumMainnet, electroneumTestnet].map((chain) => (
-                            <button
-                              key={chain.id}
-                              onClick={() => handleChainSwitch(chain.id)}
-                              className={`flex items-center space-x-2 w-full px-4 py-2 text-sm ${
-                                currentChain?.id === chain.id
-                                  ? 'bg-purple-600/20 text-purple-400 border-l-2 border-purple-600'
-                                  : 'text-purple-300 hover:bg-purple-900/70 hover:text-white'
-                              } transition-all duration-200`}
-                              disabled={isPending}
-                            >
-                              <Image
-                                src="/chains/electroneum.png"
-                                alt={chain.name}
-                                width={18}
-                                height={18}
-                                className="rounded-full"
-                              />
-                              <span>{chain.name}</span>
-                            </button>
-                          ))}
-                        </motion.div>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={handleDisconnect}
-                      className="ml-4 flex items-center space-x-2 px-4 py-2 bg-purple-950/70 hover:bg-purple-950 border border-purple-900 hover:border-purple-600 text-white rounded-lg transition-all duration-200 group"
-                    >
-                      <span className="text-sm font-medium text-purple-300 group-hover:text-purple-400 transition-colors">
-                        {formatAddress(address)}
-                      </span>
-                      <SignOut className="w-4 h-4 text-purple-400" weight="bold" />
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={handleConnect}
-                    className="ml-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-all duration-200 shadow-md shadow-purple-600/20 flex items-center gap-2"
-                  >
-                    <Lightning weight="fill" className="w-4 h-4" />
-                    Connect Wallet
-                  </button>
-                )
-              ) : (
+              {!isMounted ? (
                 <button className="ml-4 px-4 py-2 bg-purple-600 text-white font-bold rounded-lg flex items-center gap-2 opacity-50 cursor-not-allowed">
                   <Lightning weight="fill" className="w-4 h-4" />
                   Loading Wallet...
+                </button>
+              ) : address ? (
+                <>
+                  <div className="relative ml-4" id="chain-switcher">
+                    <button
+                      onClick={() => !isPending && setIsChainMenuOpen(!isChainMenuOpen)}
+                      className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
+                        isPending
+                          ? 'bg-purple-950 cursor-not-allowed'
+                          : 'bg-purple-950/50 border border-purple-900 hover:border-purple-600 hover:bg-purple-950/70'
+                      } transition-all duration-200`}
+                      disabled={isPending}
+                    >
+                      {currentChain && (
+                        <div className="relative">
+                          <div className="absolute inset-0 bg-purple-600/20 rounded-full blur-[5px]"></div>
+                          <Image
+                            src={getIconPath(currentChain.id)}
+                            alt={currentChain.name}
+                            width={20}
+                            height={20}
+                            className="rounded-full relative z-10"
+                          />
+                        </div>
+                      )}
+                      <span className="text-sm font-medium text-purple-300">
+                        {isPending ? 'Switching...' : currentChain?.name || 'Select Network'}
+                      </span>
+                      {isChainMenuOpen ? (
+                        <CaretUp className="w-4 h-4 text-purple-400" />
+                      ) : (
+                        <CaretDown className="w-4 h-4 text-purple-400" />
+                      )}
+                    </button>
+
+                    {isChainMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute right-0 mt-2 w-48 rounded-lg bg-purple-950/90 backdrop-blur-lg border border-purple-900 shadow-lg shadow-purple-900/20 py-1 overflow-hidden"
+                      >
+                        {chains.map((chain) => (
+                          <button
+                            key={chain.id}
+                            onClick={() => handleChainSwitch(chain.id)}
+                            className={`flex items-center space-x-2 w-full px-4 py-2 text-sm ${
+                              currentChain?.id === chain.id
+                                ? 'bg-purple-600/20 text-purple-400 border-l-2 border-purple-600'
+                                : 'text-purple-300 hover:bg-purple-900/70 hover:text-white'
+                            } transition-all duration-200`}
+                            disabled={isPending}
+                          >
+                            <Image
+                              src={getIconPath(chain.id)}
+                              alt={chain.name}
+                              width={18}
+                              height={18}
+                              className="rounded-full"
+                            />
+                            <span>{chain.name}</span>
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleDisconnect}
+                    className="ml-4 flex items-center space-x-2 px-4 py-2 bg-purple-950/70 hover:bg-purple-950 border border-purple-900 hover:border-purple-600 text-white rounded-lg transition-all duration-200 group"
+                  >
+                    <span className="text-sm font-medium text-purple-300 group-hover:text-purple-400 transition-colors">
+                      {formatAddress(address)}
+                    </span>
+                    <SignOut className="w-4 h-4 text-purple-400" weight="bold" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleConnect}
+                  className="ml-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-all duration-200 shadow-md shadow-purple-600/20 flex items-center gap-2"
+                >
+                  <Lightning weight="fill" className="w-4 h-4" />
+                  Connect Wallet
                 </button>
               )}
             </div>
@@ -212,64 +217,60 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               <MobileNavLink href="/documentor">Documentor</MobileNavLink>
               <MobileNavLink href="/profile">Profile</MobileNavLink>
 
-              {isClient ? (
-                address && (
-                  <div className="pt-4 pb-1">
-                    <p className="px-3 text-xs text-purple-500 uppercase tracking-wider font-medium">
-                      Select Network
-                    </p>
-                    <div className="mt-2 space-y-1">
-                      {[electroneumMainnet, electroneumTestnet].map((chain) => (
-                        <button
-                          key={chain.id}
-                          onClick={() => handleChainSwitch(chain.id)}
-                          className={`flex items-center space-x-2 w-full px-3 py-2 rounded-lg ${
-                            currentChain?.id === chain.id
-                              ? 'bg-purple-600/20 text-purple-400 border-l-2 border-purple-600'
-                              : 'text-purple-300 hover:bg-purple-900/80 hover:text-white'
-                          } transition-all duration-200`}
-                          disabled={isPending}
-                        >
-                          <Image
-                            src="/chains/electroneum.png"
-                            alt={chain.name}
-                            width={20}
-                            height={20}
-                            className="rounded-full"
-                          />
-                          <span>
-                            {isPending && currentChain?.id === chain.id ? 'Switching...' : chain.name}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
+              {isMounted && address && (
+                <div className="pt-4 pb-1">
+                  <p className="px-3 text-xs text-purple-500 uppercase tracking-wider font-medium">
+                    Select Network
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {chains.map((chain) => (
+                      <button
+                        key={chain.id}
+                        onClick={() => handleChainSwitch(chain.id)}
+                        className={`flex items-center space-x-2 w-full px-3 py-2 rounded-lg ${
+                          currentChain?.id === chain.id
+                            ? 'bg-purple-600/20 text-purple-400 border-l-2 border-purple-600'
+                            : 'text-purple-300 hover:bg-purple-900/80 hover:text-white'
+                        } transition-all duration-200`}
+                        disabled={isPending}
+                      >
+                        <Image
+                          src={getIconPath(chain.id)}
+                          alt={chain.name}
+                          width={20}
+                          height={20}
+                          className="rounded-full"
+                        />
+                        <span>
+                          {isPending && currentChain?.id === chain.id ? 'Switching...' : chain.name}
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                )
-              ) : null}
+                </div>
+              )}
 
               <div className="pt-4">
-                {isClient ? (
-                  address ? (
-                    <button
-                      onClick={handleDisconnect}
-                      className="flex items-center justify-center space-x-2 w-full px-4 py-3 bg-purple-950/80 border border-purple-900 text-white rounded-lg hover:bg-purple-950 hover:border-purple-600 transition-all duration-200"
-                    >
-                      <span className="font-medium text-purple-300">{formatAddress(address)}</span>
-                      <SignOut className="w-4 h-4 text-purple-400" weight="bold" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleConnect}
-                      className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-all duration-200 shadow-lg shadow-purple-600/20 flex items-center justify-center gap-2"
-                    >
-                      <Lightning weight="fill" className="w-5 h-5" />
-                      Connect Wallet
-                    </button>
-                  )
-                ) : (
+                {!isMounted ? (
                   <button className="w-full px-4 py-3 bg-purple-600 text-white font-bold rounded-lg flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
                     <Lightning weight="fill" className="w-5 h-5" />
                     Loading Wallet...
+                  </button>
+                ) : address ? (
+                  <button
+                    onClick={handleDisconnect}
+                    className="flex items-center justify-center space-x-2 w-full px-4 py-3 bg-purple-950/80 border border-purple-900 text-white rounded-lg hover:bg-purple-950 hover:border-purple-600 transition-all duration-200"
+                  >
+                    <span className="font-medium text-purple-300">{formatAddress(address)}</span>
+                    <SignOut className="w-4 h-4 text-purple-400" weight="bold" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleConnect}
+                    className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-all duration-200 shadow-lg shadow-purple-600/20 flex items-center justify-center gap-2"
+                  >
+                    <Lightning weight="fill" className="w-5 h-5" />
+                    Connect Wallet
                   </button>
                 )}
               </div>
@@ -285,7 +286,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             <div>
               <div className="flex items-center mb-4">
-                <Image src="/logo.svg" alt="AuditFi Logo" width={32} height={32} />
+                <Image src="/logo.svg" alt="SecureFi Logo" width={32} height={32} />
                 <span className="ml-2 text-xl font-bold text-white">SecureFi</span>
               </div>
               <p className="text-purple-300 mb-4">

@@ -6,9 +6,9 @@ import { metaMask } from "wagmi/connectors";
 export type ChainKey =
   | 'electroneumMainnet'
   | 'electroneumTestnet'
-  | 'eduChainMainnet'
-  | 'eduChainTestnet'
-  | 'apothemMainnet'
+  // | 'eduChainMainnet'
+  // | 'eduChainTestnet'
+  // | 'apothemMainnet'
   | 'apothemTestnet';
 
 // Chain configurations with additional fields for consistency
@@ -40,68 +40,68 @@ export const electroneumTestnet = {
     decimals: 18,
   },
   rpcUrls: {
-    default: { http: ['https://testnet-rpc.electroneum.com'] }, // Placeholder; replace with actual URL
-    public: { http: ['https://testnet-rpc.electroneum.com'] },
+    default: { http: ['https://rpc.ankr.com/electroneum_testnet'] }, // Placeholder; replace with actual URL
+    public: { http: ['https://rpc.ankr.com/electroneum_testnet'] },
   },
   blockExplorers: {
-    default: { name: 'Electroneum Testnet Explorer', url: 'https://testnet-blockexplorer.electroneum.com' } }, // Placeholder; replace with actual URL
+    default: { name: 'Electroneum Testnet Explorer', url: 'https://blockexplorer.thesecurityteam.rocks' } }, // Placeholder; replace with actual URL
   documentationUrl: 'https://developer.electroneum.com',
   iconPath: '/chains/electroneum.png', // Distinct icon
 } as const;
 
-export const eduChainMainnet = {
-  id: 255, // 0xFF; placeholder
-  name: 'EDU Chain Mainnet',
-  nativeCurrency: {
-    name: 'EduCoin',
-    symbol: 'EDU',
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: { http: ['https://rpc.educhain-mainnet.org'] }, // Placeholder
-    public: { http: ['https://rpc.educhain-mainnet.org'] },
-  },
-  blockExplorers: {
-    default: { name: 'EDU Chain Explorer', url: 'https://explorer.educhain-mainnet.org' } }, // Placeholder
-  documentationUrl: 'https://docs.educhain.org', // Placeholder
-  iconPath: '/chains/educhain.png',
-} as const;
+// export const eduChainMainnet = {
+//   id: 255, // 0xFF; placeholder
+//   name: 'EDU Chain Mainnet',
+//   nativeCurrency: {
+//     name: 'EduCoin',
+//     symbol: 'EDU',
+//     decimals: 18,
+//   },
+//   rpcUrls: {
+//     default: { http: ['https://rpc.educhain-mainnet.org'] }, // Placeholder
+//     public: { http: ['https://rpc.educhain-mainnet.org'] },
+//   },
+//   blockExplorers: {
+//     default: { name: 'EDU Chain Explorer', url: 'https://explorer.educhain-mainnet.org' } }, // Placeholder
+//   documentationUrl: 'https://docs.educhain.org', // Placeholder
+//   iconPath: '/chains/educhain.png',
+// } as const;
 
-export const eduChainTestnet = {
-  id: 256, // 0x100; placeholder
-  name: 'EDU Chain Testnet',
-  nativeCurrency: {
-    name: 'EduCoin',
-    symbol: 'EDU',
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: { http: ['https://rpc.educhain-testnet.org'] }, // Placeholder
-    public: { http: ['https://rpc.educhain-testnet.org'] },
-  },
-  blockExplorers: {
-    default: { name: 'EDU Chain Testnet Explorer', url: 'https://explorer.educhain-testnet.org' } }, // Placeholder
-  documentationUrl: 'https://docs.educhain.org', // Placeholder
-  iconPath: '/chains/educhain.png',
-} as const;
+// export const eduChainTestnet = {
+//   id: 256, // 0x100; placeholder
+//   name: 'EDU Chain Testnet',
+//   nativeCurrency: {
+//     name: 'EduCoin',
+//     symbol: 'EDU',
+//     decimals: 18,
+//   },
+//   rpcUrls: {
+//     default: { http: ['https://rpc.educhain-testnet.org'] }, // Placeholder
+//     public: { http: ['https://rpc.educhain-testnet.org'] },
+//   },
+//   blockExplorers: {
+//     default: { name: 'EDU Chain Testnet Explorer', url: 'https://explorer.educhain-testnet.org' } }, // Placeholder
+//   documentationUrl: 'https://docs.educhain.org', // Placeholder
+//   iconPath: '/chains/educhain.png',
+// } as const;
 
-export const apothemMainnet = {
-  id: 50, // 0x32; XDC Network Mainnet
-  name: 'Apothem Chain Mainnet',
-  nativeCurrency: {
-    name: 'XDC',
-    symbol: 'XDC',
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: { http: ['https://rpc.xinfin.network'] },
-    public: { http: ['https://rpc.xinfin.network'] },
-  },
-  blockExplorers: {
-    default: { name: 'XDC Explorer', url: 'https://explorer.xinfin.network' } },
-  documentationUrl: 'https://docs.xinfin.org',
-  iconPath: '/chains/apothem.png',
-} as const;
+// export const apothemMainnet = {
+//   id: 50, // 0x32; XDC Network Mainnet
+//   name: 'Apothem Chain Mainnet',
+//   nativeCurrency: {
+//     name: 'XDC',
+//     symbol: 'XDC',
+//     decimals: 18,
+//   },
+//   rpcUrls: {
+//     default: { http: ['https://rpc.xinfin.network'] },
+//     public: { http: ['https://rpc.xinfin.network'] },
+//   },
+//   blockExplorers: {
+//     default: { name: 'XDC Explorer', url: 'https://explorer.xinfin.network' } },
+//   documentationUrl: 'https://docs.xinfin.org',
+//   iconPath: '/chains/apothem.png',
+// } as const;
 
 export const apothemTestnet = {
   id: 51, // 0x33; XDC Apothem Testnet
@@ -125,9 +125,9 @@ export const apothemTestnet = {
 export const CHAIN_CONFIG = {
   electroneumMainnet,
   electroneumTestnet,
-  eduChainMainnet,
-  eduChainTestnet,
-  apothemMainnet,
+  // eduChainMainnet,
+  // eduChainTestnet,
+  // apothemMainnet,
   apothemTestnet,
 } as const;
 
@@ -136,9 +136,9 @@ export const config = createConfig({
   chains: [
     electroneumMainnet,
     electroneumTestnet,
-    eduChainMainnet,
-    eduChainTestnet,
-    apothemMainnet,
+    // eduChainMainnet,
+    // eduChainTestnet,
+    // apothemMainnet,
     apothemTestnet,
   ],
   connectors: [
@@ -147,9 +147,9 @@ export const config = createConfig({
   transports: {
     [electroneumMainnet.id]: http(),
     [electroneumTestnet.id]: http(),
-    [eduChainMainnet.id]: http(),
-    [eduChainTestnet.id]: http(),
-    [apothemMainnet.id]: http(),
+    // [eduChainMainnet.id]: http(),
+    // [eduChainTestnet.id]: http(),
+    // [apothemMainnet.id]: http(),
     [apothemTestnet.id]: http(),
   },
 });

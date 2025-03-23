@@ -1,7 +1,7 @@
-'use client';
-
+/** @format */
+// No 'use client' directive - this is a Server Component
 import '@/app/globals.css';
-import { WagmiProvider } from '@/components/providers/WagmiProvider';
+import ClientProviders from '@/components/ClientProviders'; // New Client Component
 import LayoutContent from '@/components/Navbar';
 
 interface RootLayoutProps {
@@ -12,9 +12,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
       <body className="bg-[#0A0B0D] text-white min-h-screen">
-        <WagmiProvider>
+        <ClientProviders>
           <LayoutContent>{children}</LayoutContent>
-        </WagmiProvider>
+        </ClientProviders>
       </body>
     </html>
   );
