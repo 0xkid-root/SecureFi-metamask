@@ -21,9 +21,10 @@ import {
   GithubLogo,
   DownloadSimple
 } from 'phosphor-react';
-import { connectWallet } from '@/utils/web3';
 import { CONTRACT_ADDRESSES, AUDIT_REGISTRY_ABI } from '@/utils/contracts';
-import { CHAIN_CONFIG } from '@/utils/web3';
+import { CHAIN_CONFIG } from '@/utils/web3-config';
+import { useAccount, useConnect, useWalletClient } from 'wagmi';
+import { metaMask } from 'wagmi/connectors';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import jsPDF from 'jspdf';
@@ -127,6 +128,18 @@ export default function AuditPage() {
   const [githubUrl, setGithubUrl] = useState('');
   const [isFetchingGithub, setIsFetchingGithub] = useState(false);
 
+  // Wagmi hooks
+  const { isConnected, chain } = useAccount();
+  const { connectAsync } = useConnect();
+  const { data: walletClient } = useWalletClient();
+
+  // Convert WalletClient to ethers.js signer
+  const getSigner = async () => {
+    if (!walletClient) throw new Error('Wallet client not available');
+    const provider = new ethers.BrowserProvider(walletClient.transport);
+    return await provider.getSigner();
+  };
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       setMousePosition({ x: e.clientX, y: e.clientY });
@@ -155,14 +168,14 @@ export default function AuditPage() {
 
   const detectCurrentNetwork = async () => {
     try {
-      const { provider } = await connectWallet();
-      const network = await provider.getNetwork();
+      if (!isConnected || !chain) return null;
       for (const [key, config] of Object.entries(CHAIN_CONFIG)) {
-        if (('0x' + network.chainId.toString(16)).toLowerCase() === config.chainId.toLowerCase()) {
+        if (chain.id === config.id) {
           setCurrentChain(key as keyof typeof CHAIN_CONFIG);
           return key as keyof typeof CHAIN_CONFIG;
         }
       }
+      setCurrentChain(null);
       return null;
     } catch (error) {
       console.error('Error detecting network:', error);
@@ -176,19 +189,29 @@ export default function AuditPage() {
     setTxState({ isProcessing: true, hash: null, error: null });
 
     try {
-      const { provider, signer } = await connectWallet();
+      if (!isConnected) {
+        await connectAsync({ connector: metaMask() });
+      }
+
+      if (!walletClient) throw new Error('Wallet client not available');
+
+      const signer = await getSigner();
       const contractHash = ethers.keccak256(ethers.toUtf8Bytes(code));
-      const network = await provider.getNetwork();
       const detectedChain = await detectCurrentNetwork();
 
-      if (!detectedChain || (detectedChain !== 'electroneumMainnet' && detectedChain !== 'electroneumTestnet')) {
-        throw new Error('Please switch to Electroneum Network (Mainnet or Testnet) to register audits');
+      if (!detectedChain) {
+        throw new Error('Please connect to a supported network: Electroneum Mainnet, Testnet, or Apothem Testnet');
+      }
+
+      if (!CONTRACT_ADDRESSES[detectedChain]) {
+        throw new Error(`Audit registration not supported on ${CHAIN_CONFIG[detectedChain].name}. Please switch to a supported network.`);
       }
 
       const contractAddress = CONTRACT_ADDRESSES[detectedChain];
       const contract = new ethers.Contract(contractAddress, AUDIT_REGISTRY_ABI, signer);
       const tx = await contract.registerAudit(contractHash, result.stars, result.summary);
       const receipt = await tx.wait();
+
       setTxState({ isProcessing: false, hash: receipt.transactionHash, error: null });
       setIsReviewBlurred(false);
     } catch (error) {
@@ -196,12 +219,11 @@ export default function AuditPage() {
       setTxState({
         isProcessing: false,
         hash: null,
-        error: (error instanceof Error) ? error.message : 'Failed to register audit'
+        error: error instanceof Error ? error.message : 'Failed to register audit'
       });
     }
   };
 
-  // Feature 1: Handle File Upload for .sol Files
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -220,11 +242,10 @@ export default function AuditPage() {
       setCode(text);
       setError(null);
     } catch (err) {
-      setError(`Failed to read the file. Please try again. ${err}`);
+      setError(`Failed to read the file: ${err}`);
     }
   };
 
-  // Feature 2: Fetch Solidity Code from GitHub Repository
   const fetchGithubCode = async () => {
     if (!githubUrl) {
       setError('Please enter a valid GitHub repository URL.');
@@ -233,7 +254,7 @@ export default function AuditPage() {
 
     const githubRegex = /^https:\/\/github\.com\/[\w-]+\/[\w-]+(\/blob\/[\w-]+\/[\w-]+\.sol)?$/;
     if (!githubRegex.test(githubUrl)) {
-      setError('Please enter a valid GitHub repository URL (e.g., https://github.com/user/repo or https://github.com/user/repo/blob/branch/file.sol).');
+      setError('Please enter a valid GitHub URL (e.g., https://github.com/user/repo or https://github.com/user/repo/blob/branch/file.sol).');
       return;
     }
 
@@ -244,20 +265,15 @@ export default function AuditPage() {
       let rawUrl = githubUrl
         .replace('github.com', 'raw.githubusercontent.com')
         .replace('/blob/', '/');
-
+      
       if (!rawUrl.endsWith('.sol')) {
         rawUrl += '/main/contracts/Contract.sol';
       }
 
       const response = await fetch(rawUrl);
-      if (!response.ok) {
-        throw new Error('Failed to fetch the file from GitHub.');
-      }
-
+      if (!response.ok) throw new Error('Failed to fetch file from GitHub.');
       const text = await response.text();
-      if (!isSolidityCode(text)) {
-        throw new Error('The fetched file does not contain valid Solidity code.');
-      }
+      if (!isSolidityCode(text)) throw new Error('Fetched file is not valid Solidity code.');
 
       setCode(text);
       setGithubUrl('');
@@ -268,117 +284,85 @@ export default function AuditPage() {
     }
   };
 
-  // Feature 3: Export Audit Report as PDF
   const exportToPDF = () => {
-    if (!result) {
-      console.error('No audit result available to export.');
-      return;
-    }
-
-    // Log the result object to debug
-    console.log('Exporting PDF with result:', result);
+    if (!result) return;
 
     const doc = new jsPDF();
     let yOffset = 20;
-    const pageHeight = doc.internal.pageSize.getHeight(); // Get the height of the page (A4: ~297mm)
-    const margin = 20; // Margin for the page
-    const maxHeight = pageHeight - margin; // Maximum height before adding a new page
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    const maxHeight = pageHeight - margin;
 
-    // Set a dark background for the entire PDF
-    doc.setFillColor(40, 40, 40); // Dark gray background (RGB)
+    doc.setFillColor(40, 40, 40);
     doc.rect(0, 0, doc.internal.pageSize.getWidth(), doc.internal.pageSize.getHeight(), 'F');
 
-    // Helper function to check if we need a new page
     const checkPageOverflow = (additionalHeight: number) => {
       if (yOffset + additionalHeight > maxHeight) {
         doc.addPage();
-        // Reset the background for the new page
         doc.setFillColor(40, 40, 40);
         doc.rect(0, 0, doc.internal.pageSize.getWidth(), doc.internal.pageSize.getHeight(), 'F');
-        yOffset = margin; // Reset yOffset for the new page
+        yOffset = margin;
       }
-      console.log(`yOffset after check: ${yOffset}, additionalHeight: ${additionalHeight}`);
     };
 
-    // Title
     doc.setFontSize(20);
-    doc.setTextColor(128, 0, 128); // Purple color (RGB)
+    doc.setTextColor(128, 0, 128);
     doc.text('Smart Contract Audit Report', margin, yOffset);
     yOffset += 10;
-    console.log('Added Title, yOffset:', yOffset);
 
-    // Security Score
     checkPageOverflow(10);
     doc.setFontSize(14);
-    doc.setTextColor(255, 255, 255); // White color (RGB)
+    doc.setTextColor(255, 255, 255);
     doc.text(`Security Score: ${result.stars}/5`, margin, yOffset);
     yOffset += 10;
-    console.log('Added Security Score, yOffset:', yOffset);
 
-    // Summary
     checkPageOverflow(12);
     doc.setFontSize(12);
-    doc.setTextColor(255, 255, 255); // White color
+    doc.setTextColor(255, 255, 255);
     doc.text('Summary:', margin, yOffset);
     yOffset += 6;
     const summaryLines = doc.splitTextToSize(result.summary || 'No summary available.', 170);
     checkPageOverflow(summaryLines.length * 6);
     doc.text(summaryLines, margin, yOffset);
     yOffset += summaryLines.length * 6 + 5;
-    console.log('Added Summary, yOffset:', yOffset);
 
-    // Vulnerabilities
     checkPageOverflow(12);
     doc.setFontSize(12);
-    doc.setTextColor(255, 255, 255); // White color
+    doc.setTextColor(255, 255, 255);
     doc.text('Vulnerabilities:', margin, yOffset);
     yOffset += 6;
-    console.log('Added Vulnerabilities header, yOffset:', yOffset);
 
     let hasVulnerabilities = false;
     Object.entries(result.vulnerabilities).forEach(([severity, issues]) => {
       const config = SEVERITY_CONFIGS[severity];
-      // Set color based on severity (convert Tailwind color to RGB)
       let severityColor: [number, number, number];
       switch (severity) {
-        case 'critical':
-          severityColor = [255, 0, 0]; // Red
-          break;
-        case 'high':
-          severityColor = [255, 165, 0]; // Orange
-          break;
-        case 'medium':
-          severityColor = [255, 255, 0]; // Yellow
-          break;
-        case 'low':
-          severityColor = [128, 0, 128]; // Purple
-          break;
-        default:
-          severityColor = [255, 255, 255]; // White
+        case 'critical': severityColor = [255, 0, 0]; break;
+        case 'high': severityColor = [255, 165, 0]; break;
+        case 'medium': severityColor = [255, 255, 0]; break;
+        case 'low': severityColor = [128, 0, 128]; break;
+        default: severityColor = [255, 255, 255];
       }
 
       checkPageOverflow(6);
       doc.setTextColor(...severityColor);
       doc.text(`${config.label}:`, margin, yOffset);
       yOffset += 6;
-      console.log(`Added ${config.label} header, yOffset:`, yOffset);
 
       if (issues.length > 0) {
         hasVulnerabilities = true;
-        issues.forEach((issue, index) => {
+        issues.forEach((issue) => {
           const issueLines = doc.splitTextToSize(`- ${issue}`, 160);
           checkPageOverflow(issueLines.length * 6);
-          doc.setTextColor(255, 255, 255); // White for issue text
+          doc.setTextColor(255, 255, 255);
           doc.text(issueLines, margin + 5, yOffset);
           yOffset += issueLines.length * 6;
-          console.log(`Added issue ${index + 1} for ${severity}: "${issue}", yOffset:`, yOffset);
         });
       } else {
         checkPageOverflow(6);
-        doc.setTextColor(255, 255, 255); // White for "No issues" text
+        doc.setTextColor(255, 255, 255);
         doc.text(`- No ${severity} risk vulnerabilities found.`, margin + 5, yOffset);
         yOffset += 6;
-        console.log(`Added "No ${severity} risk" message, yOffset:`, yOffset);
       }
       yOffset += 2;
     });
@@ -388,58 +372,47 @@ export default function AuditPage() {
       doc.setTextColor(255, 255, 255);
       doc.text('- No vulnerabilities found.', margin + 5, yOffset);
       yOffset += 6;
-      console.log('Added "No vulnerabilities found" message, yOffset:', yOffset);
     }
 
-    // Recommendations
     checkPageOverflow(12);
     doc.setFontSize(12);
-    doc.setTextColor(255, 255, 255); // White color
+    doc.setTextColor(255, 255, 255);
     doc.text('Recommendations:', margin, yOffset);
     yOffset += 6;
-    console.log('Added Recommendations header, yOffset:', yOffset);
 
-    if (result.recommendations && result.recommendations.length > 0) {
-      result.recommendations.forEach((rec, index) => {
+    if (result.recommendations?.length > 0) {
+      result.recommendations.forEach((rec) => {
         const recLines = doc.splitTextToSize(`- ${rec}`, 160);
         checkPageOverflow(recLines.length * 6);
         doc.text(recLines, margin + 5, yOffset);
         yOffset += recLines.length * 6;
-        console.log(`Added recommendation ${index + 1}: "${rec}", yOffset:`, yOffset);
       });
     } else {
       checkPageOverflow(6);
       doc.text('- No recommendations provided.', margin + 5, yOffset);
       yOffset += 6;
-      console.log('Added "No recommendations" message, yOffset:', yOffset);
     }
 
-    // Gas Optimizations
     checkPageOverflow(12);
     yOffset += 5;
     doc.setFontSize(12);
-    doc.setTextColor(255, 255, 255); // White color
+    doc.setTextColor(255, 255, 255);
     doc.text('Gas Optimizations:', margin, yOffset);
     yOffset += 6;
-    console.log('Added Gas Optimizations header, yOffset:', yOffset);
 
-    if (result.gasOptimizations && result.gasOptimizations.length > 0) {
-      result.gasOptimizations.forEach((opt, index) => {
+    if (result.gasOptimizations?.length > 0) {
+      result.gasOptimizations.forEach((opt) => {
         const optLines = doc.splitTextToSize(`- ${opt}`, 160);
         checkPageOverflow(optLines.length * 6);
         doc.text(optLines, margin + 5, yOffset);
         yOffset += optLines.length * 6;
-        console.log(`Added gas optimization ${index + 1}: "${opt}", yOffset:`, yOffset);
       });
     } else {
       checkPageOverflow(6);
       doc.text('- No gas optimizations provided.', margin + 5, yOffset);
       yOffset += 6;
-      console.log('Added "No gas optimizations" message, yOffset:', yOffset);
     }
 
-    // Save the PDF
-    console.log('Saving PDF...');
     doc.save('audit-report.pdf');
   };
 
@@ -517,16 +490,15 @@ export default function AuditPage() {
       await detectCurrentNetwork();
     } catch (error) {
       console.error('Analysis failed:', error);
-      setError('Analysis failed. Please try again in a few moments.');
+      setError('Analysis failed. Please try again.');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
   useEffect(() => {
-    const checkChain = async () => await detectCurrentNetwork();
-    checkChain();
-  }, []);
+    detectCurrentNetwork();
+  }, [isConnected, chain]);
 
   return (
     <div className="min-h-screen py-12 bg-black text-white">
@@ -537,7 +509,7 @@ export default function AuditPage() {
             <span className="text-purple-400 text-sm font-semibold">AI Security Analysis</span>
           </div>
           <h1 className="text-3xl font-mono font-bold text-purple-400 mb-4">Smart Contract Audit</h1>
-          <p className="text-purple-300">Get instant AI-powered security analysis for your smart contracts on Electroneum Network</p>
+          <p className="text-purple-300">Get instant AI-powered security analysis for your smart contracts</p>
           <AnimatePresence>
             {error && (
               <motion.div
@@ -711,7 +683,7 @@ export default function AuditPage() {
                     </button>
                     {txState.hash && currentChain && (
                       <a 
-                        href={`${CHAIN_CONFIG[currentChain].blockExplorerUrls[0]}/tx/${txState.hash}`}
+                        href={`${CHAIN_CONFIG[currentChain].blockExplorers.default.url}/tx/${txState.hash}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1 transition-colors duration-200"
@@ -723,7 +695,6 @@ export default function AuditPage() {
                 </div>
 
                 <div className={`h-[calc(100%-60px)] custom-scrollbar overflow-auto p-6 transition-all duration-300 ${isReviewBlurred ? 'blur-md select-none' : ''}`}>
-                  {/* Rating */}
                   <div className="flex items-center gap-4 mb-6">
                     <div className="flex gap-1">
                       {[...Array(5)].map((_, i) => (
@@ -738,7 +709,6 @@ export default function AuditPage() {
                     <span className="text-purple-300">Security Score</span>
                   </div>
 
-                  {/* Summary */}
                   <div className="mb-6">
                     <h3 className="font-mono text-sm text-purple-400 mb-2">SUMMARY</h3>
                     <div className="bg-purple-900/50 px-4 py-3 rounded-lg border border-purple-800/70 text-white">
@@ -746,7 +716,6 @@ export default function AuditPage() {
                     </div>
                   </div>
 
-                  {/* Vulnerabilities */}
                   <div className="mb-6 space-y-4">
                     <h3 className="font-mono text-sm text-purple-400 mb-2">VULNERABILITIES</h3>
                     {Object.entries(result.vulnerabilities).map(([severity, issues]) => {
@@ -770,13 +739,12 @@ export default function AuditPage() {
                     })}
                   </div>
 
-                  {/* Recommendations */}
                   <div className="mb-6">
                     <h3 className="font-mono text-sm text-purple-400 mb-2">RECOMMENDATIONS</h3>
                     <div className="bg-purple-600/10 border border-purple-600/30 rounded-lg p-4">
                       <ul className="space-y-2">
-                        {result.recommendations.map((rec, _) => (
-                          <li key={rec} className="flex items-start gap-2 text-sm">
+                        {result.recommendations.map((rec, index) => (
+                          <li key={index} className="flex items-start gap-2 text-sm">
                             <CheckCircle className="text-purple-400 mt-1 flex-shrink-0" size={16} weight="fill" />
                             <span className="text-purple-300">{rec}</span>
                           </li>
@@ -785,13 +753,12 @@ export default function AuditPage() {
                     </div>
                   </div>
 
-                  {/* Gas Optimizations */}
                   <div className="mb-6">
                     <h3 className="font-mono text-sm text-purple-400 mb-2">GAS OPTIMIZATIONS</h3>
                     <div className="bg-purple-600/10 border border-purple-600/30 rounded-lg p-4">
                       <ul className="space-y-2">
-                        {result.gasOptimizations.map((opt, _) => (
-                          <li key={opt} className="flex items-start gap-2 text-sm">
+                        {result.gasOptimizations.map((opt, index) => (
+                          <li key={index} className="flex items-start gap-2 text-sm">
                             <Cube className="text-purple-400 mt-1 flex-shrink-0" size={16} weight="fill" />
                             <span className="text-purple-300">{opt}</span>
                           </li>
@@ -801,7 +768,6 @@ export default function AuditPage() {
                   </div>
                 </div>
 
-                {/* Register Audit Button Overlay */}
                 {isReviewBlurred && (
                   <div className="absolute inset-0 flex items-center justify-center backdrop-blur-sm bg-black/30">
                     <div className="bg-purple-950 p-8 rounded-xl border border-purple-600/30 shadow-xl text-center">
@@ -812,7 +778,7 @@ export default function AuditPage() {
                         onClick={registerAuditOnChain}
                         disabled={txState.isProcessing}
                         className={`px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center gap-3 mx-auto shadow-lg shadow-purple-600/20 ${
-                          txState.isProcessing ? 'cursor-not-allowed' : ''
+                          txState.isProcessing ? 'cursor-not-allowed opacity-70' : ''
                         }`}
                       >
                         {txState.isProcessing ? (
@@ -827,28 +793,26 @@ export default function AuditPage() {
                           </>
                         )}
                       </button>
-                      {currentChain && (
+                      {currentChain ? (
                         <div className="mt-4 text-purple-400 text-sm flex items-center justify-center gap-2">
                           <Image 
                             src={CHAIN_CONFIG[currentChain].iconPath}
-                            alt={CHAIN_CONFIG[currentChain].chainName}
+                            alt={CHAIN_CONFIG[currentChain].name}
                             width={16}
                             height={16}
                             className="rounded-full"
                           />
-                          Will register on {CHAIN_CONFIG[currentChain].chainName}
+                          Will register on {CHAIN_CONFIG[currentChain].name}
                         </div>
-                      )}
-                      {!currentChain && (
+                      ) : (
                         <div className="mt-4 text-yellow-400 text-sm">
-                          Please connect to Electroneum Network (Mainnet or Testnet)
+                          Please connect to a supported network
                         </div>
                       )}
                     </div>
                   </div>
                 )}
 
-                {/* Transaction Error Message */}
                 {txState.error && (
                   <div className="absolute bottom-4 left-4 right-4 bg-red-600/20 border border-red-600/30 text-red-400 px-4 py-2 rounded-lg">
                     {txState.error}
@@ -891,24 +855,19 @@ export default function AuditPage() {
           scrollbar-width: thin;
           scrollbar-color: rgba(107, 70, 193, 0.3) transparent;
         }
-        
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }
-        
         .custom-scrollbar::-webkit-scrollbar-track {
           background: transparent;
         }
-        
         .custom-scrollbar::-webkit-scrollbar-thumb {
           background-color: rgba(107, 70, 193, 0.3);
           border-radius: 3px;
         }
-        
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background-color: rgba(107, 70, 193, 0.5);
         }
-        
         .code-editor::selection {
           background: rgba(107, 70, 193, 0.2);
         }

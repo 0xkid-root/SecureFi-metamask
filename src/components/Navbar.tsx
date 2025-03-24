@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from 'wagmi';
 import { SignOut, List, X, CaretDown, CaretUp, Lightning, GithubLogo, TwitterLogo } from 'phosphor-react';
 import Logo from '/public/logo.svg';
-import { CHAIN_CONFIG } from '@/utils/web3-config'; // Import CHAIN_CONFIG
+import { CHAIN_CONFIG } from '@/utils/web3-config';
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -33,7 +33,6 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         setIsChainMenuOpen(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -60,11 +59,60 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
-  // Helper to get iconPath by chain ID
   const getIconPath = (chainId: number) => {
     const chainConfig = Object.values(CHAIN_CONFIG).find((chain) => chain.id === chainId);
-    return chainConfig?.iconPath || '/chains/electroneum.png'; // Fallback
+    return chainConfig?.iconPath || '/chains/electroneum.png';
   };
+
+  if (!isMounted) {
+    return (
+      <>
+        <nav className="fixed w-full z-50 border-b border-purple-900/60 bg-black/90 backdrop-blur-xl shadow-md shadow-purple-900/10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <Link href="/" className="flex items-center space-x-2 group">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-purple-600/20 rounded-full blur-[10px]"></div>
+                  <Image src={Logo} alt="SecureFi Logo" width={34} height={34} className="relative z-10" />
+                </div>
+                <span className="text-xl font-mono font-bold text-white">SecureFI</span>
+              </Link>
+              <div className="hidden md:flex items-center space-x-1">
+                <NavLink href="/contract-builder">Contract-builder</NavLink>
+                <NavLink href="/testcase-generator">Test</NavLink>
+                <NavLink href="/audit">Audit</NavLink>
+                <NavLink href="/reports">Reports</NavLink>
+                <NavLink href="/documentor">Documentor</NavLink>
+                <NavLink href="/w3hackHub">W3HackHub</NavLink>
+                <NavLink href="/profile">Profile</NavLink>
+                <button className="ml-4 px-4 py-2 bg-purple-600 text-white font-bold rounded-lg flex items-center gap-2 opacity-50 cursor-not-allowed">
+                  <Lightning weight="fill" className="w-4 h-4" />
+                  Loading Wallet...
+                </button>
+              </div>
+              <button className="md:hidden p-2 rounded-lg bg-purple-950/50 border border-purple-900">
+                <List weight="bold" className="w-5 h-5 text-purple-400" />
+              </button>
+            </div>
+          </div>
+        </nav>
+        <main className="pt-16 bg-black">{children}</main>
+        <footer className="bg-black border-t border-purple-900 py-12">
+          {/* Minimal footer for initial render */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+              <div>
+                <div className="flex items-center mb-4">
+                  <Image src="/logo.svg" alt="SecureFi Logo" width={32} height={32} />
+                  <span className="ml-2 text-xl font-bold text-white">SecureFi</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </>
+    );
+  }
 
   return (
     <>
@@ -96,12 +144,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               <NavLink href="/w3hackHub">W3HackHub</NavLink>
               <NavLink href="/profile">Profile</NavLink>
 
-              {!isMounted ? (
-                <button className="ml-4 px-4 py-2 bg-purple-600 text-white font-bold rounded-lg flex items-center gap-2 opacity-50 cursor-not-allowed">
-                  <Lightning weight="fill" className="w-4 h-4" />
-                  Loading Wallet...
-                </button>
-              ) : address ? (
+              {address ? (
                 <>
                   <div className="relative ml-4" id="chain-switcher">
                     <button
@@ -217,7 +260,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               <MobileNavLink href="/documentor">Documentor</MobileNavLink>
               <MobileNavLink href="/profile">Profile</MobileNavLink>
 
-              {isMounted && address && (
+              {address && (
                 <div className="pt-4 pb-1">
                   <p className="px-3 text-xs text-purple-500 uppercase tracking-wider font-medium">
                     Select Network
@@ -251,12 +294,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
               )}
 
               <div className="pt-4">
-                {!isMounted ? (
-                  <button className="w-full px-4 py-3 bg-purple-600 text-white font-bold rounded-lg flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
-                    <Lightning weight="fill" className="w-5 h-5" />
-                    Loading Wallet...
-                  </button>
-                ) : address ? (
+                {address ? (
                   <button
                     onClick={handleDisconnect}
                     className="flex items-center justify-center space-x-2 w-full px-4 py-3 bg-purple-950/80 border border-purple-900 text-white rounded-lg hover:bg-purple-950 hover:border-purple-600 transition-all duration-200"
@@ -293,79 +331,28 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                 Ensure the security of your smart contracts with AI-driven audits and immutable on-chain verification.
               </p>
               <div className="flex space-x-4">
-                <a
-                  href="#"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-purple-300 hover:text-purple-400 transition-colors"
-                >
+                <a href="#" target="_blank" rel="noopener noreferrer" className="text-purple-300 hover:text-purple-400 transition-colors">
                   <GithubLogo size={24} />
                 </a>
-                <a
-                  href="#"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-purple-300 hover:text-purple-400 transition-colors"
-                >
+                <a href="#" target="_blank" rel="noopener noreferrer" className="text-purple-300 hover:text-purple-400 transition-colors">
                   <TwitterLogo size={24} />
                 </a>
               </div>
             </div>
-
             <div>
               <h3 className="font-semibold text-white mb-4">Quick Links</h3>
               <ul className="space-y-2">
-                <li>
-                  <Link href="/audit" className="text-purple-300 hover:text-purple-400 transition-colors">
-                    Start Audit
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/reports" className="text-purple-300 hover:text-purple-400 transition-colors">
-                    Reports
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/search" className="text-purple-300 hover:text-purple-400 transition-colors">
-                    Search
-                  </Link>
-                </li>
+                <li><Link href="/audit" className="text-purple-300 hover:text-purple-400 transition-colors">Start Audit</Link></li>
+                <li><Link href="/reports" className="text-purple-300 hover:text-purple-400 transition-colors">Reports</Link></li>
+                <li><Link href="/search" className="text-purple-300 hover:text-purple-400 transition-colors">Search</Link></li>
               </ul>
             </div>
-
             <div>
               <h3 className="font-semibold text-white mb-4">Resources</h3>
               <ul className="space-y-2">
-                <li>
-                  <a
-                    href="#"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-purple-300 hover:text-purple-400 transition-colors"
-                  >
-                    Documentation
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-purple-300 hover:text-purple-400 transition-colors"
-                  >
-                    Community
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-purple-300 hover:text-purple-400 transition-colors"
-                  >
-                    Support
-                  </a>
-                </li>
+                <li><a href="#" target="_blank" rel="noopener noreferrer" className="text-purple-300 hover:text-purple-400 transition-colors">Documentation</a></li>
+                <li><a href="#" target="_blank" rel="noopener noreferrer" className="text-purple-300 hover:text-purple-400 transition-colors">Community</a></li>
+                <li><a href="#" target="_blank" rel="noopener noreferrer" className="text-purple-300 hover:text-purple-400 transition-colors">Support</a></li>
               </ul>
             </div>
           </div>
@@ -381,20 +368,14 @@ interface NavLinkProps {
 }
 
 const NavLink = ({ href, children }: NavLinkProps) => (
-  <Link
-    href={href}
-    className="px-3 py-2 rounded-lg text-purple-300 hover:text-white hover:bg-purple-900/50 transition-all duration-200"
-  >
+  <Link href={href} className="px-3 py-2 rounded-lg text-purple-300 hover:text-white hover:bg-purple-900/50 transition-all duration-200">
     {children}
   </Link>
 );
 
 function MobileNavLink({ href, children }: NavLinkProps) {
   return (
-    <Link
-      href={href}
-      className="block px-3 py-2.5 text-purple-300 hover:text-white hover:bg-purple-600/20 rounded-lg transition-colors duration-200 border-l-2 border-transparent hover:border-purple-600"
-    >
+    <Link href={href} className="block px-3 py-2.5 text-purple-300 hover:text-white hover:bg-purple-600/20 rounded-lg transition-colors duration-200 border-l-2 border-transparent hover:border-purple-600">
       {children}
     </Link>
   );
