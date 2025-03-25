@@ -2,28 +2,11 @@ import { QueryClient } from "@tanstack/react-query";
 import { http, createConfig } from "wagmi";
 import { metaMask } from "wagmi/connectors";
 
-// Define chain keys for type safety
 export type ChainKey =
-  | 'electroneumMainnet'
   | 'electroneumTestnet'
   | 'eduChainTestnet'
-  | 'apothemTestnet';
-
-// Chain configurations
-export const electroneumMainnet = {
-  id: 52014,
-  name: 'Electroneum Mainnet',
-  nativeCurrency: { name: 'Electroneum', symbol: 'ETN', decimals: 18 },
-  rpcUrls: {
-    default: { http: ['https://rpc.ankr.com/electroneum'] },
-    public: { http: ['https://rpc.ankr.com/electroneum'] },
-  },
-  blockExplorers: {
-    default: { name: 'Electroneum Explorer', url: 'https://blockexplorer.electroneum.com' },
-  },
-  documentationUrl: 'https://developer.electroneum.com',
-  iconPath: '/chains/electroneum.png',
-} as const;
+  | 'apothemTestnet'
+  | 'celoAlfajoresTestnet';
 
 export const electroneumTestnet = {
   id: 5201420,
@@ -40,16 +23,16 @@ export const electroneumTestnet = {
 } as const;
 
 export const eduChainTestnet = {
-  id: 656476, // Correct chain ID for Open Campus Codex Sepolia
+  id: 656476,
   name: 'EDU Chain Testnet',
   nativeCurrency: { name: 'EduCoin', symbol: 'EDU', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://open-campus-codex-sepolia.drpc.org'] }, // Updated RPC URL
+    default: { http: ['https://open-campus-codex-sepolia.drpc.org'] },
     public: { http: ['https://open-campus-codex-sepolia.drpc.org'] },
   },
   blockExplorers: {
     default: { name: 'EDU Chain Testnet Explorer', url: 'https://edu-chain-testnet.blockscout.com/' } },
-  documentationUrl: 'https://docs.educhain.org',
+  documentationUrl: 'https://docs.open-campus.xyz/',
   iconPath: '/chains/educhain.png',
 } as const;
 
@@ -67,28 +50,42 @@ export const apothemTestnet = {
   iconPath: '/chains/apothem.png',
 } as const;
 
+export const celoAlfajoresTestnet = {
+  id: 44787,
+  name: 'Celo Alfajores Testnet',
+  nativeCurrency: { name: 'Celo', symbol: 'CELO', decimals: 18 },
+  rpcUrls: {
+    default: { http: ['https://celo-alfajores.drpc.org'] },
+    public: { http: ['https://celo-alfajores.drpc.org'] },
+  },
+  blockExplorers: {
+    default: { name: 'Celo Alfajores Explorer', url: 'https://alfajores.celoscan.io/' } },
+  documentationUrl: 'https://docs.celo.org',
+  iconPath: '/chains/celo.png',
+} as const;
+
 export const CHAIN_CONFIG = {
-  electroneumMainnet,
   electroneumTestnet,
   eduChainTestnet,
   apothemTestnet,
+  celoAlfajoresTestnet,
 } as const;
 
 export const config = createConfig({
   chains: [
-    electroneumMainnet,
     electroneumTestnet,
     eduChainTestnet,
     apothemTestnet,
+    celoAlfajoresTestnet,
   ],
   connectors: [
     metaMask(),
   ],
   transports: {
-    [electroneumMainnet.id]: http(),
     [electroneumTestnet.id]: http(),
     [eduChainTestnet.id]: http(),
     [apothemTestnet.id]: http(),
+    [celoAlfajoresTestnet.id]: http(),
   },
 });
 

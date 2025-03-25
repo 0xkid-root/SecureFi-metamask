@@ -22,7 +22,7 @@ import {
 } from 'phosphor-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { CHAIN_CONFIG, ChainKey } from '@/utils/web3-config'; // Adjust path as needed
+import { CHAIN_CONFIG, ChainKey } from '@/utils/web3-config';
 
 const features = [
   {
@@ -70,7 +70,7 @@ const recentAudits = [
     summary: 'No critical vulnerabilities found. Code follows best practices.',
     auditor: '0xABc...123',
     timestamp: 1703116800,
-    chain: 'electroneumMainnet',
+    chain: 'eduChainTestnet',
   },
   {
     contractHash: '0x456...def',
@@ -78,7 +78,7 @@ const recentAudits = [
     summary: 'Minor optimizations suggested. Overall secure implementation.',
     auditor: '0xDEf...456',
     timestamp: 1703030400,
-    chain: 'electroneumMainnet',
+    chain: 'celoAlfajoresTestnet',
   },
   {
     contractHash: '0x789...ghi',
@@ -86,7 +86,7 @@ const recentAudits = [
     summary: 'Excellent implementation with robust security measures.',
     auditor: '0xGHi...789',
     timestamp: 1702944000,
-    chain: 'electroneumMainnet',
+    chain: 'apothemTestnet',
   },
 ];
 
@@ -164,7 +164,7 @@ export default function Home() {
                 <span className="text-purple-400">SECURITY</span>
               </h1>
               <p className="text-purple-300 text-lg mb-8 max-w-xl">
-                Safeguard your smart contracts with advanced AI-powered analysis, detailed documentation, and robust on-chain verification. Engineered for cross-chain excellence across leading networks like Electroneum, Ethereum, Binance Smart Chain, Polygon, and more.
+                Safeguard your smart contracts with advanced AI-powered analysis, detailed documentation, and robust on-chain verification. Engineered for cross-chain excellence across leading networks like Electroneum, EDU Chain, Apothem, and Celo.
               </p>
               <div className="flex gap-4">
                 <Link href="/audit">
@@ -413,16 +413,22 @@ export default function Home() {
                         <div className="flex items-center gap-2">
                           <div className="relative">
                             <div className="absolute inset-0 bg-purple-900/30 rounded-full filter blur-[1px]" />
-                            <Image
-                              src={CHAIN_CONFIG[audit.chain as ChainKey].iconPath}
-                              alt={CHAIN_CONFIG[audit.chain as ChainKey].name}
-                              width={20}
-                              height={20}
-                              className="rounded-full relative z-10"
-                            />
+                            {CHAIN_CONFIG[audit.chain as ChainKey] ? (
+                              <Image
+                                src={CHAIN_CONFIG[audit.chain as ChainKey].iconPath}
+                                alt={CHAIN_CONFIG[audit.chain as ChainKey].name}
+                                width={20}
+                                height={20}
+                                className="rounded-full relative z-10"
+                              />
+                            ) : (
+                              <div className="w-5 h-5 rounded-full bg-purple-900 text-white flex items-center justify-center text-xs">
+                                ?
+                              </div>
+                            )}
                           </div>
                           <span className="text-purple-300 text-sm">
-                            {CHAIN_CONFIG[audit.chain as ChainKey].name}
+                            {CHAIN_CONFIG[audit.chain as ChainKey]?.name || 'Unknown Chain'}
                           </span>
                         </div>
                       </td>
