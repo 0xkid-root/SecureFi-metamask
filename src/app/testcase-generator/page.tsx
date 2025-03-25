@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mistral } from '@mistralai/mistralai';
 import {
   FileCode,
-  Robot,
   CircleNotch,
   Copy,
   Check,

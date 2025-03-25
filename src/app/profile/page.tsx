@@ -13,8 +13,8 @@ import {
   Lightning
 } from 'phosphor-react';
 import Image from 'next/image';
-import { connectWallet } from '@/utils/web3';
-import { CHAIN_CONFIG } from '@/utils/web3';
+import { useAccount, useConnect } from 'wagmi';
+import { CHAIN_CONFIG } from '@/utils/web3-config';
 import { CONTRACT_ADDRESSES, AUDIT_REGISTRY_ABI } from '@/utils/contracts';
 
 interface AuditStats {
@@ -33,7 +33,6 @@ interface UserAudit {
 }
 
 export default function ProfilePage() {
-  const [address, setAddress] = useState<string | null>(null);
   const [stats, setStats] = useState<AuditStats>({
     totalAudits: 0,
     averageStars: 0,
@@ -42,19 +41,14 @@ export default function ProfilePage() {
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const initializeProfile = async () => {
-      try {
-        const { address: userAddress } = await connectWallet();
-        setAddress(userAddress);
-        await fetchUserStats(userAddress);
-      } catch (error) {
-        console.error('Failed to initialize profile:', error);
-      }
-    };
+  const { address, isConnected } = useAccount();
+  const { connect, connectors } = useConnect();
 
-    initializeProfile();
-  }, []);
+  useEffect(() => {
+    if (isConnected && address) {
+      fetchUserStats(address);
+    }
+  }, [isConnected, address]);
 
   const fetchUserStats = async (userAddress: string) => {
     setIsLoading(true);
@@ -62,32 +56,28 @@ export default function ProfilePage() {
       const allAudits: UserAudit[] = [];
       const chainCounts: Record<string, number> = {};
       let totalStars = 0;
-  
+
       for (const [chainKey, chainData] of Object.entries(CHAIN_CONFIG)) {
+        const chainTypedKey = chainKey as keyof typeof CHAIN_CONFIG;
         try {
-          console.log(`Fetching from ${chainKey}...`);
-          const provider = new ethers.JsonRpcProvider(chainData.rpcUrls[0]);
-  
+          console.log(`Fetching from ${chainKey} (ID: ${chainData.id})...`);
+          const provider = new ethers.JsonRpcProvider(chainData.rpcUrls.default.http[0]);
+
           const contract = new ethers.Contract(
-            CONTRACT_ADDRESSES[chainKey as keyof typeof CONTRACT_ADDRESSES],
+            CONTRACT_ADDRESSES[chainTypedKey],
             AUDIT_REGISTRY_ABI,
             provider
           );
-  
+
           const BATCH_SIZE = 50;
-          const totalContracts = await contract.getTotalContracts();
+          const totalContracts = Number(await contract.getTotalContracts());
           let processed = 0;
-  
+
           while (processed < totalContracts) {
             try {
-              const {
-                contractHashes,
-                stars,
-                summaries,
-                auditors,
-                timestamps
-              } = await contract.getAllAudits(processed, BATCH_SIZE);
-  
+              const auditBatch = await contract.getAllAudits(processed, BATCH_SIZE);
+              const [contractHashes, stars, summaries, auditors, timestamps] = auditBatch;
+
               for (let i = 0; i < contractHashes.length; i++) {
                 if (auditors[i].toLowerCase() === userAddress.toLowerCase()) {
                   allAudits.push({
@@ -95,14 +85,14 @@ export default function ProfilePage() {
                     stars: Number(stars[i]),
                     summary: summaries[i],
                     timestamp: Number(timestamps[i]),
-                    chain: chainKey as keyof typeof CHAIN_CONFIG
+                    chain: chainTypedKey,
                   });
-  
+
                   chainCounts[chainKey] = (chainCounts[chainKey] || 0) + 1;
                   totalStars += Number(stars[i]);
                 }
               }
-  
+
               processed += contractHashes.length;
             } catch (batchError) {
               console.error(`Error fetching batch at ${processed} from ${chainKey}:`, batchError);
@@ -114,18 +104,17 @@ export default function ProfilePage() {
           chainCounts[chainKey] = 0;
         }
       }
-  
+
       const totalAudits = allAudits.length;
-      
+
       setStats({
         totalAudits,
         averageStars: totalAudits > 0 ? totalStars / totalAudits : 0,
         chainBreakdown: chainCounts,
         recentAudits: allAudits
           .sort((a, b) => b.timestamp - a.timestamp)
-          .slice(0, 5)
+          .slice(0, 5),
       });
-  
     } catch (error) {
       console.error('Failed to fetch user stats:', error);
     } finally {
@@ -133,7 +122,7 @@ export default function ProfilePage() {
     }
   };
 
-  if (!address) {
+  if (!isConnected || !address) {
     return (
       <div className="min-h-screen py-12 bg-black">
         <div className="max-w-6xl mx-auto px-4">
@@ -145,13 +134,9 @@ export default function ProfilePage() {
             <h2 className="text-2xl font-mono text-white">Connect Your Wallet</h2>
             <p className="text-purple-300 max-w-md text-center">Connect your wallet to view your audit profile and see your security verification statistics</p>
             <button
-              onClick={async () => {
-                try {
-                  const { address } = await connectWallet();
-                  setAddress(address);
-                  await fetchUserStats(address);
-                } catch (error) {
-                  console.error('Failed to connect wallet:', error);
+              onClick={() => {
+                if (connectors.length > 0) {
+                  connect({ connector: connectors[0] });
                 }
               }}
               className="px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center gap-2 shadow-lg shadow-purple-600/20"
@@ -168,7 +153,6 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen py-12 bg-black">
       <div className="max-w-6xl mx-auto px-4">
-        {/* Profile Header */}
         <div className="bg-purple-950/30 border border-purple-900 hover:border-purple-600/50 transition-colors duration-300 rounded-lg p-6 mb-8 shadow-lg">
           <div className="flex items-start justify-between">
             <div>
@@ -180,7 +164,7 @@ export default function ProfilePage() {
                 <User size={16} className="text-purple-400" weight="bold" />
                 <span className="font-mono">{address}</span>
                 <a
-                  href={`https://etherscan.io/address/${address}`}
+                  href={`https://etherscan.io/address/${address}`} // Note: Update this for multi-chain support if needed
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-purple-400 hover:text-purple-300 transition-colors"
@@ -212,9 +196,7 @@ export default function ProfilePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Stats Cards */}
             <div className="space-y-8">
-              {/* Overall Stats */}
               <div className="bg-purple-950/30 border border-purple-900 hover:border-purple-600/50 transition-colors duration-300 rounded-lg p-6 shadow-lg">
                 <div className="flex items-center gap-2 mb-4">
                   <ChartBar size={20} className="text-purple-400" weight="duotone" />
@@ -237,7 +219,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Chain Distribution */}
               <div className="bg-purple-950/30 border border-purple-900 hover:border-purple-600/50 transition-colors duration-300 rounded-lg p-6 shadow-lg">
                 <div className="flex items-center gap-2 mb-4">
                   <Lightning size={20} className="text-purple-400" weight="duotone" />
@@ -250,7 +231,7 @@ export default function ProfilePage() {
                         <div className="absolute inset-0 bg-purple-600/20 rounded-full blur-[2px]"></div>
                         <Image
                           src={CHAIN_CONFIG[chain as keyof typeof CHAIN_CONFIG].iconPath}
-                          alt={CHAIN_CONFIG[chain as keyof typeof CHAIN_CONFIG].chainName}
+                          alt={CHAIN_CONFIG[chain as keyof typeof CHAIN_CONFIG].name}
                           width={24}
                           height={24}
                           className="rounded-full relative z-10"
@@ -258,14 +239,14 @@ export default function ProfilePage() {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-white">{CHAIN_CONFIG[chain as keyof typeof CHAIN_CONFIG].chainName}</span>
+                          <span className="text-white">{CHAIN_CONFIG[chain as keyof typeof CHAIN_CONFIG].name}</span>
                           <span className="text-purple-300 px-2 py-0.5 rounded-full bg-purple-600/20 text-xs border border-purple-600/30">{count} audits</span>
                         </div>
                         <div className="h-2 bg-purple-900 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-purple-600"
                             style={{
-                              width: `${(count / stats.totalAudits) * 100}%`
+                              width: `${stats.totalAudits > 0 ? (count / stats.totalAudits) * 100 : 0}%`
                             }}
                           />
                         </div>
@@ -276,7 +257,6 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Recent Audits */}
             <div className="bg-purple-950/30 border border-purple-900 hover:border-purple-600/50 transition-colors duration-300 rounded-lg p-6 shadow-lg">
               <div className="flex items-center gap-2 mb-4">
                 <ListChecks size={20} className="text-purple-400" weight="duotone" />
@@ -310,13 +290,13 @@ export default function ProfilePage() {
                           <div className="absolute inset-0 bg-purple-600/20 rounded-full blur-[1px]"></div>
                           <Image
                             src={CHAIN_CONFIG[audit.chain].iconPath}
-                            alt={CHAIN_CONFIG[audit.chain].chainName}
+                            alt={CHAIN_CONFIG[audit.chain].name}
                             width={16}
                             height={16}
                             className="rounded-full relative z-10"
                           />
                         </div>
-                        <span className="text-purple-300">{CHAIN_CONFIG[audit.chain].chainName}</span>
+                        <span className="text-purple-300">{CHAIN_CONFIG[audit.chain].name}</span>
                       </div>
                       <span className="text-xs px-2 py-0.5 rounded-full bg-purple-950/80 text-purple-300 border border-purple-800/50">
                         {new Date(audit.timestamp * 1000).toLocaleDateString()}

@@ -6,20 +6,14 @@ import { metaMask } from "wagmi/connectors";
 export type ChainKey =
   | 'electroneumMainnet'
   | 'electroneumTestnet'
-  // | 'eduChainMainnet'
   | 'eduChainTestnet'
-  // | 'apothemMainnet'
   | 'apothemTestnet';
 
-// Chain configurations with additional fields for consistency
+// Chain configurations
 export const electroneumMainnet = {
-  id: 52014, // 0xCB2E
+  id: 52014,
   name: 'Electroneum Mainnet',
-  nativeCurrency: {
-    name: 'Electroneum',
-    symbol: 'ETN',
-    decimals: 18,
-  },
+  nativeCurrency: { name: 'Electroneum', symbol: 'ETN', decimals: 18 },
   rpcUrls: {
     default: { http: ['https://rpc.ankr.com/electroneum'] },
     public: { http: ['https://rpc.ankr.com/electroneum'] },
@@ -32,85 +26,37 @@ export const electroneumMainnet = {
 } as const;
 
 export const electroneumTestnet = {
-  id: 5201420, // 0x4F5CCC; verify this chain ID
+  id: 5201420,
   name: 'Electroneum Testnet',
-  nativeCurrency: {
-    name: 'Electroneum',
-    symbol: 'ETN',
-    decimals: 18,
-  },
+  nativeCurrency: { name: 'Electroneum', symbol: 'ETN', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://rpc.ankr.com/electroneum_testnet'] }, // Placeholder; replace with actual URL
+    default: { http: ['https://rpc.ankr.com/electroneum_testnet'] },
     public: { http: ['https://rpc.ankr.com/electroneum_testnet'] },
   },
   blockExplorers: {
-    default: { name: 'Electroneum Testnet Explorer', url: 'https://blockexplorer.thesecurityteam.rocks' } }, // Placeholder; replace with actual URL
+    default: { name: 'Electroneum Testnet Explorer', url: 'https://blockexplorer.thesecurityteam.rocks' } },
   documentationUrl: 'https://developer.electroneum.com',
-  iconPath: '/chains/electroneum.png', // Distinct icon
+  iconPath: '/chains/electroneum.png',
 } as const;
 
-// export const eduChainMainnet = {
-//   id: 255, // 0xFF; placeholder
-//   name: 'EDU Chain Mainnet',
-//   nativeCurrency: {
-//     name: 'EduCoin',
-//     symbol: 'EDU',
-//     decimals: 18,
-//   },
-//   rpcUrls: {
-//     default: { http: ['https://rpc.educhain-mainnet.org'] }, // Placeholder
-//     public: { http: ['https://rpc.educhain-mainnet.org'] },
-//   },
-//   blockExplorers: {
-//     default: { name: 'EDU Chain Explorer', url: 'https://explorer.educhain-mainnet.org' } }, // Placeholder
-//   documentationUrl: 'https://docs.educhain.org', // Placeholder
-//   iconPath: '/chains/educhain.png',
-// } as const;
-
 export const eduChainTestnet = {
-  id: 256, // 0x100; placeholder
+  id: 656476, // Correct chain ID for Open Campus Codex Sepolia
   name: 'EDU Chain Testnet',
-  nativeCurrency: {
-    name: 'EduCoin',
-    symbol: 'EDU',
-    decimals: 18,
-  },
+  nativeCurrency: { name: 'EduCoin', symbol: 'EDU', decimals: 18 },
   rpcUrls: {
-    default: { http: ['wss://open-campus-codex-sepolia.drpc.org'] }, // Placeholder
-    public: { http: ['wss://open-campus-codex-sepolia.drpc.org'] },
+    default: { http: ['https://open-campus-codex-sepolia.drpc.org'] }, // Updated RPC URL
+    public: { http: ['https://open-campus-codex-sepolia.drpc.org'] },
   },
   blockExplorers: {
-    default: { name: 'EDU Chain Testnet Explorer', url: 'https://edu-chain-testnet.blockscout.com/' } }, // Placeholder
-  documentationUrl: 'https://docs.educhain.org', // Placeholder
+    default: { name: 'EDU Chain Testnet Explorer', url: 'https://edu-chain-testnet.blockscout.com/' } },
+  documentationUrl: 'https://docs.educhain.org',
   iconPath: '/chains/educhain.png',
 } as const;
 
-// export const apothemMainnet = {
-//   id: 50, // 0x32; XDC Network Mainnet
-//   name: 'Apothem Chain Mainnet',
-//   nativeCurrency: {
-//     name: 'XDC',
-//     symbol: 'XDC',
-//     decimals: 18,
-//   },
-//   rpcUrls: {
-//     default: { http: ['https://rpc.xinfin.network'] },
-//     public: { http: ['https://rpc.xinfin.network'] },
-//   },
-//   blockExplorers: {
-//     default: { name: 'XDC Explorer', url: 'https://explorer.xinfin.network' } },
-//   documentationUrl: 'https://docs.xinfin.org',
-//   iconPath: '/chains/apothem.png',
-// } as const;
-
 export const apothemTestnet = {
-  id: 51, // 0x33; XDC Apothem Testnet
+  id: 51,
   name: 'Apothem Chain Testnet',
-  nativeCurrency: {
-    name: 'XDC',
-    symbol: 'XDC',
-    decimals: 18,
-  },
+  nativeCurrency: { name: 'XDC', symbol: 'XDC', decimals: 18 },
   rpcUrls: {
     default: { http: ['https://rpc.apothem.network'] },
     public: { http: ['https://rpc.apothem.network'] },
@@ -121,24 +67,18 @@ export const apothemTestnet = {
   iconPath: '/chains/apothem.png',
 } as const;
 
-// Centralized chain config
 export const CHAIN_CONFIG = {
   electroneumMainnet,
   electroneumTestnet,
-  // eduChainMainnet,
   eduChainTestnet,
-  // apothemMainnet,
   apothemTestnet,
 } as const;
 
-// Create Wagmi config
 export const config = createConfig({
   chains: [
     electroneumMainnet,
     electroneumTestnet,
-    // eduChainMainnet,
     eduChainTestnet,
-    // apothemMainnet,
     apothemTestnet,
   ],
   connectors: [
@@ -147,20 +87,17 @@ export const config = createConfig({
   transports: {
     [electroneumMainnet.id]: http(),
     [electroneumTestnet.id]: http(),
-    // [eduChainMainnet.id]: http(),
     [eduChainTestnet.id]: http(),
-    // [apothemMainnet.id]: http(),
     [apothemTestnet.id]: http(),
   },
 });
 
-// Create React Query client with custom options
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60 * 1000, // 1 minute
-      retry: 2, // Retry failed queries twice
-      refetchOnWindowFocus: false, // Avoid refetching on window focus
+      staleTime: 60 * 1000,
+      retry: 2,
+      refetchOnWindowFocus: false,
     },
   },
 });
