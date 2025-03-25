@@ -24,7 +24,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { CHAIN_CONFIG, ChainKey } from '@/utils/web3-config';
 import { handleAskQuestion } from '@/utils/askQuestionHandler';
-import { handleSearchWithMistral } from '@/utils/searchHandler';
+// import { handleSearchWithMistral } from '@/utils/searchHandler';
 
 const features = [
   {
@@ -170,8 +170,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black">
-
-
       {/* Ask AI Assistant Section */}
       <section className="py-20 bg-black relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
@@ -188,12 +186,6 @@ export default function Home() {
             <div className="inline-block mb-3 px-4 py-1 rounded-full bg-purple-900/50 border border-purple-800">
               <span className="text-purple-400 text-sm font-semibold">SecureFi</span>
             </div>
-            {/* <h2 className="text-4xl font-bold font-mono mb-4 text-white">
-              Ask Our <span className="text-purple-400">AI Assistant</span> About Web3
-            </h2>
-            <p className="text-purple-300 text-lg max-w-2xl mx-auto">
-              Get instant answers about smart contracts, blockchain protocols, and web3 technologies to build your project faster.
-            </p> */}
           </motion.div>
 
           <div className="flex flex-col items-center gap-12">
@@ -204,13 +196,12 @@ export default function Home() {
               className="w-full max-w-2xl text-center"
             >
               <h3 className="text-3xl sm:text-4xl font-mono font-bold mb-6 text-white">
-                Find Any Smart Contract,<br />
-                Build Your <span className="text-purple-400">Web3 Project</span> Faster
+                Audit, Build, and Test Smart Contracts<br />
+                with <span className="text-purple-400">SecureFi</span>
               </h3>
               <p className="text-gray-100 text-lg mb-8 max-w-xl mx-auto leading-relaxed">
-                Access 1,000+ smart contracts, web3 resources, and AI-driven insights to accelerate your development across any blockchain.
+                Use SecureFi’s AI-driven tools to audit, build, and test your smart contracts with precision, ensuring security and efficiency across any blockchain.
               </p>
-             
             </motion.div>
 
             <motion.div
@@ -321,6 +312,7 @@ export default function Home() {
           </div>
         </div>
       </section>
+
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center">
         <div className="absolute inset-0 bg-gradient-to-br from-purple-950/40 via-black to-purple-900/40" />
@@ -403,8 +395,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      
 
       {/* How It Works Section */}
       <section className="py-20 bg-black">
