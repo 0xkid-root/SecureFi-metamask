@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
@@ -23,6 +23,8 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { CHAIN_CONFIG, ChainKey } from '@/utils/web3-config';
+import { handleAskQuestion } from '@/utils/askQuestionHandler';
+import { handleSearchWithMistral } from '@/utils/searchHandler';
 
 const features = [
   {
@@ -123,7 +125,28 @@ const steps = [
   },
 ];
 
+const cookbookQuestions = [
+  {
+    question: 'How do I deploy ERC-20 token on Linea?',
+    icon: CloudArrowUp,
+  },
+  {
+    question: 'What does the Solmate ERC4626 contract do?',
+    icon: File,
+  },
+  {
+    question: 'What are the features of the Uniswap protocol?',
+    icon: Lightning,
+  },
+];
+
 export default function Home() {
+  const [question, setQuestion] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState('');
+
   useEffect(() => {
     AOS.init({
       duration: 1000,
@@ -147,34 +170,198 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black">
+
+
+      {/* Ask AI Assistant Section */}
+      <section className="py-20 bg-black relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-900/20 rounded-full filter blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-800/20 rounded-full filter blur-3xl" />
+
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <div className="inline-block mb-3 px-4 py-1 rounded-full bg-purple-900/50 border border-purple-800">
+              <span className="text-purple-400 text-sm font-semibold">SecureFi</span>
+            </div>
+            {/* <h2 className="text-4xl font-bold font-mono mb-4 text-white">
+              Ask Our <span className="text-purple-400">AI Assistant</span> About Web3
+            </h2>
+            <p className="text-purple-300 text-lg max-w-2xl mx-auto">
+              Get instant answers about smart contracts, blockchain protocols, and web3 technologies to build your project faster.
+            </p> */}
+          </motion.div>
+
+          <div className="flex flex-col items-center gap-12">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="w-full max-w-2xl text-center"
+            >
+              <h3 className="text-3xl sm:text-4xl font-mono font-bold mb-6 text-white">
+                Find Any Smart Contract,<br />
+                Build Your <span className="text-purple-400">Web3 Project</span> Faster
+              </h3>
+              <p className="text-gray-100 text-lg mb-8 max-w-xl mx-auto leading-relaxed">
+                Access 1,000+ smart contracts, web3 resources, and AI-driven insights to accelerate your development across any blockchain.
+              </p>
+             
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="bg-gray-900/90 backdrop-blur-md rounded-lg p-6 border border-purple-700 shadow-2xl shadow-purple-600/30 w-full max-w-2xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <span className="text-purple-400">Ask AI Assistant</span>
+                </h3>
+                <button
+                  onClick={() => setAnswer('')}
+                  className="text-purple-400 hover:text-purple-300 text-sm"
+                >
+                  Clear Chat
+                </button>
+              </div>
+
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {!answer && !isLoading && (
+                  <div className="bg-purple-950/50 p-4 rounded-lg">
+                    <p className="text-gray-200">
+                      Ask me anything about the SecureFi!
+                    </p>
+                  </div>
+                )}
+
+                {isLoading && !searchResults && (
+                  <div className="bg-purple-950/50 p-4 rounded-lg flex items-center gap-2">
+                    <svg
+                      className="animate-spin h-5 w-5 text-purple-400"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    <p className="text-gray-200">Thinking...</p>
+                  </div>
+                )}
+
+                {answer && !isLoading && (
+                  <div className="bg-purple-950/50 p-4 rounded-lg">
+                    <div
+                      className="text-gray-200"
+                      dangerouslySetInnerHTML={{ __html: answer }}
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <button className="text-gray-400 hover:text-gray-200">👍</button>
+                      <button className="text-gray-400 hover:text-gray-200">👎</button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="w-full">
+                  <div className="grid grid-cols-1 gap-3">
+                    {cookbookQuestions.map((item, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setQuestion(item.question)}
+                        className="hover-gradient-effect bg-gray-800/50 hover:bg-gray-700/50 text-left p-2 rounded-lg transition-all duration-200 border border-purple-700 hover:border-purple-600 shadow-lg shadow-purple-600/20"
+                      >
+                        <div className="flex items-center gap-2">
+                          <item.icon
+                            size={20}
+                            className="text-purple-400"
+                            weight="duotone"
+                          />
+                          <h4 className="text-gray-200 text-sm font-semibold">{item.question}</h4>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 relative">
+                <input
+                  type="text"
+                  placeholder="Ask anything about SecureFi"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAskQuestion(question, setIsLoading, setAnswer, setQuestion)}
+                  className="w-full px-4 py-3 bg-gray-800/50 border border-purple-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                />
+                <button
+                  onClick={() => handleAskQuestion(question, setIsLoading, setAnswer, setQuestion)}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-purple-400 hover:text-purple-300"
+                >
+                  <ArrowRight size={20} weight="bold" />
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center">
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-black to-purple-800/20" />
-        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-5" />
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-950/40 via-black to-purple-900/40" />
+        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-15" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-950/30 rounded-full filter blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-800/30 rounded-full filter blur-3xl" />
 
-        <div className="relative max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.8 }}
             >
-              <h1 className="text-5xl md:text-7xl font-mono font-bold mb-6 text-white">
-                NEXT-GEN<br /> SMART CONTRACT<br />
-                <span className="text-purple-400">SECURITY</span>
+              <div className="flex items-center gap-2 mb-4">
+                <Image
+                  src="/chains/educhain.png"
+                  alt="Blockchain"
+                  width={24}
+                  height={24}
+                  className="rounded-full"
+                />
+                <span className="text-purple-400 text-sm font-semibold">Built for Web3</span>
+              </div>
+
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-mono font-bold mb-6 text-white leading-tight">
+                Secure Smart Contracts<br />
+                with <span className="text-purple-400">AI-Powered Insights</span>
               </h1>
-              <p className="text-purple-300 text-lg mb-8 max-w-xl">
-                Safeguard your smart contracts with advanced AI-powered analysis, detailed documentation, and robust on-chain verification. Engineered for cross-chain excellence across leading networks like Electroneum, EDU Chain, Apothem, and Celo.
+              <p className="text-gray-100 text-lg sm:text-xl mb-8 max-w-xl leading-relaxed">
+                Leverage advanced AI-driven analysis, detailed documentation, and on-chain verification to safeguard your smart contracts across any blockchain network.
               </p>
               <div className="flex gap-4">
                 <Link href="/audit">
-                  <button className="hover-gradient-effect px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-all duration-200 flex items-center gap-2">
+                  <button className="hover-gradient-effect px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-all duration-300 flex items-center gap-2 shadow-lg shadow-purple-600/40">
                     Start Audit <ArrowRight weight="bold" />
                   </button>
                 </Link>
                 <Link href="/reports">
-                  <button className="hover-gradient-effect px-6 py-3 bg-black hover:bg-purple-900/50 text-white border border-purple-800 rounded-lg transition-all duration-200">
-                    View Reports
+                  <button className="hover-gradient-effect px-6 py-3 bg-transparent hover:bg-purple-900/60 text-white border border-purple-500 hover:border-purple-400 rounded-lg transition-all duration-300 flex items-center gap-2">
+                    View Reports <FileText weight="bold" />
                   </button>
                 </Link>
               </div>
@@ -183,32 +370,41 @@ export default function Home() {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="hidden lg:block relative"
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="relative hidden lg:block"
             >
-              
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-black rounded-lg" />
-              <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500"></div>
-              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-            </div>
-          </div>
-              <Image
-                src="/screenshot.png"
-                alt="AuditFi Interface"
-                width={600}
-                height={400}
-                className="rounded-lg shadow-2xl border border-purple-900"
-                priority={true}
-                layout="responsive"
-                sizes="(max-width: 768px) 100vw, 600px"
-              />
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/30 to-black rounded-lg" />
+              <div className="relative bg-gray-900/80 backdrop-blur-md rounded-lg p-4 border border-purple-800 shadow-2xl shadow-purple-600/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                </div>
+                <pre className="text-sm text-gray-200 font-mono whitespace-pre-wrap overflow-x-auto">
+                  <code>
+                    {`function tradingFunction(NormalCurve memory self)
+  returns (int256 invariant)
+{
+  // α√τ
+  uint256 stdDevSqrtTau = self.computeStdDevSqrtTau();
+
+  // Get the bounds and check if one of the reserves has reached the bounds.
+  (uint256 upperBoundX, uint256 lowerBoundX) = self.getReserveXBounds();
+  (uint256 upperBoundY, uint256 lowerBoundY) = self.getReserveYBounds();
+
+  // Check if the reserves are within the boundary before computing its respective invariant term.
+  // This is required because the invariant term will error for 0 or 1 as x approaches its bounds.
+  // Taking the percent point function of 0 or 1 will result in avoid.
+`}
+                  </code>
+                </pre>
+              </div>
             </motion.div>
           </div>
         </div>
       </section>
+
+      
 
       {/* How It Works Section */}
       <section className="py-20 bg-black">
@@ -257,11 +453,8 @@ export default function Home() {
         </div>
       </section>
 
-
-{/* new features add */}
-
-
-<section className="py-20 bg-black relative overflow-hidden">
+      {/* Advanced Threat Detection Section */}
+      <section className="py-20 bg-black relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-900/20 rounded-full filter blur-3xl" />
         <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-800/20 rounded-full filter blur-3xl" />
@@ -277,7 +470,7 @@ export default function Home() {
               <span className="text-purple-400 text-sm font-semibold">Threat Detection</span>
             </div>
             <h2 className="text-4xl font-bold font-mono mb-4 text-white">
-              Uncover Threats with <span className="text-purple-400">AI-Powered Precision</span> on EDU Chain
+              Uncover Threats with <span className="text-purple-400">AI-Powered Precision</span>
             </h2>
             <p className="text-purple-300 text-lg max-w-2xl mx-auto">
               Identify vulnerabilities in your smart contracts with advanced AI analysis, detailed insights, and real-time metrics.
@@ -285,7 +478,6 @@ export default function Home() {
           </motion.div>
 
           <div className="grid lg:grid-cols-2 gap-8">
-            {/* Left Side: Code Snippet with Vulnerabilities */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               whileInView={{ opacity: 1, scale: 1 }}
@@ -300,7 +492,7 @@ export default function Home() {
                 </div>
                 <span className="text-purple-400 text-sm font-semibold">Finding Vulnerabilities</span>
               </div>
-              <pre className="text-sm text-gray-200 font-mono">
+              <pre className="text-sm text-gray-200 font-mono whitespace-pre-wrap overflow-x-auto">
                 <code>
                   {`contract VulnerableContract {
   mapping(address => uint256) public userBalances;
@@ -328,9 +520,7 @@ export default function Home() {
               </div>
             </motion.div>
 
-            {/* Right Side: Threat Analysis and Metrics */}
             <div className="space-y-6">
-              {/* Threat Analysis Card */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -357,13 +547,12 @@ export default function Home() {
                 </div>
               </motion.div>
 
-              {/* Metrics Cards */}
               <div className="grid grid-cols-3 gap-4">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: 0.2 }} // Moved delay into transition
+                  transition={{ delay: 0.2 }}
                   className="bg-gray-900/90 backdrop-blur-md rounded-lg p-4 border border-purple-700 shadow-2xl shadow-purple-600/30 text-center"
                 >
                   <h4 className="text-purple-400 font-semibold mb-2">Simulations/Second</h4>
@@ -373,7 +562,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: 0.4 }} // Moved delay into transition
+                  transition={{ delay: 0.4 }}
                   className="bg-gray-900/90 backdrop-blur-md rounded-lg p-4 border border-purple-700 shadow-2xl shadow-purple-600/30 text-center"
                 >
                   <h4 className="text-purple-400 font-semibold mb-2">Total Simulations</h4>
@@ -383,7 +572,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: 0.6 }} // Moved delay into transition
+                  transition={{ delay: 0.6 }}
                   className="bg-gray-900/90 backdrop-blur-md rounded-lg p-4 border border-purple-700 shadow-2xl shadow-purple-600/30 text-center"
                 >
                   <h4 className="text-purple-400 font-semibold mb-2">Total Coverage</h4>
@@ -394,7 +583,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
 
       {/* Features Section */}
       <section className="py-20 relative overflow-hidden bg-black">
@@ -481,7 +669,7 @@ export default function Home() {
                   <div className="flex-1">
                     <h3 className="font-semibold text-xl mb-1 text-white">{chainConfig.name}</h3>
                     <p className="text-purple-300">
-                      Native Token:{' '}
+                      Native Token:{" "}
                       <span className="text-purple-400 font-semibold">
                         {chainConfig.nativeCurrency.symbol}
                       </span>
@@ -639,24 +827,10 @@ export default function Home() {
                   </button>
                 </Link>
                 <Link href="/documentation">
-                  <button className="hover-gradient-effect px-8 py-4 bg-black hover:bg-purple-900/50 text-white border border-purple-800 font-bold rounded-lg transition-all duration-200 flex items-center gap-2">
-                    View Documentation <FileText weight="bold" />
+                  <button className="hover-gradient-effect px-8 py-4 bg-transparent hover:bg-purple-900/60 text-white border border-purple-500 hover:border-purple-400 rounded-lg transition-all duration-200 flex items-center gap-2">
+                    Read Documentation <FileText weight="bold" />
                   </button>
                 </Link>
-              </div>
-              <div className="mt-8 flex items-center justify-center gap-6 text-purple-300">
-                <div className="flex items-center gap-2">
-                  <Shield size={18} weight="fill" className="text-purple-400" />
-                  <span>100% Secure</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Lightning size={18} weight="fill" className="text-purple-400" />
-                  <span>Instant Results</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <FileText size={18} weight="fill" className="text-purple-400" />
-                  <span>Detailed Reports</span>
-                </div>
               </div>
             </div>
           </div>
