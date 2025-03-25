@@ -186,7 +186,15 @@ export default function Home() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="hidden lg:block relative"
             >
+              
               <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-black rounded-lg" />
+              <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+            </div>
+          </div>
               <Image
                 src="/screenshot.png"
                 alt="AuditFi Interface"
@@ -248,6 +256,145 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+
+{/* new features add */}
+
+
+<section className="py-20 bg-black relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-900/20 rounded-full filter blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-800/20 rounded-full filter blur-3xl" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <div className="inline-block mb-3 px-4 py-1 rounded-full bg-purple-900/50 border border-purple-800">
+              <span className="text-purple-400 text-sm font-semibold">Threat Detection</span>
+            </div>
+            <h2 className="text-4xl font-bold font-mono mb-4 text-white">
+              Uncover Threats with <span className="text-purple-400">AI-Powered Precision</span> on EDU Chain
+            </h2>
+            <p className="text-purple-300 text-lg max-w-2xl mx-auto">
+              Identify vulnerabilities in your smart contracts with advanced AI analysis, detailed insights, and real-time metrics.
+            </p>
+          </motion.div>
+
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Left Side: Code Snippet with Vulnerabilities */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="relative bg-gray-900/90 backdrop-blur-md rounded-lg p-6 border border-purple-700 shadow-2xl shadow-purple-600/30"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                </div>
+                <span className="text-purple-400 text-sm font-semibold">Finding Vulnerabilities</span>
+              </div>
+              <pre className="text-sm text-gray-200 font-mono">
+                <code>
+                  {`contract VulnerableContract {
+  mapping(address => uint256) public userBalances;
+
+  function withdrawBalance() public {
+    uint256 amountToWithdraw = userBalances[msg.sender];
+    require(amountToWithdraw > 0, "Insufficient balance");
+
+    userBalances[msg.sender] = 0;
+    (bool success, ) = msg.sender.call{value: amountToWithdraw}("");
+    require(success, "Transfer failed");
+  }
+
+  function deposit() public payable {
+    userBalances[msg.sender] += msg.value;
+  }
+}`}
+                </code>
+              </pre>
+              <div className="absolute top-20 left-4 w-6 h-6 bg-red-500/20 rounded-full flex items-center justify-center">
+                <span className="text-red-400 text-xs font-bold">!</span>
+              </div>
+              <div className="absolute top-28 left-4 w-6 h-6 bg-red-500/20 rounded-full flex items-center justify-center">
+                <span className="text-red-400 text-xs font-bold">!</span>
+              </div>
+            </motion.div>
+
+            {/* Right Side: Threat Analysis and Metrics */}
+            <div className="space-y-6">
+              {/* Threat Analysis Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                className="bg-gray-900/90 backdrop-blur-md rounded-lg p-6 border border-purple-700 shadow-2xl shadow-purple-600/30"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-semibold text-white">Reentrancy Threat</h3>
+                  <span className="px-3 py-1 bg-red-500/20 text-red-400 text-sm rounded-full">High Severity</span>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-purple-400 font-semibold">What is it</h4>
+                    <p className="text-gray-200">
+                      A reentrancy attack occurs when a function makes an external call to another contract before updating its state, allowing the called contract to re-enter the function and manipulate the state.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-purple-400 font-semibold">Why it matters</h4>
+                    <p className="text-gray-200">
+                      Reentrancy can lead to unauthorized withdrawals, as seen in the DAO hack. In this contract, the `withdrawBalance` function is vulnerable because it sends funds before updating the balance.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Metrics Cards */}
+              <div className="grid grid-cols-3 gap-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.2 }} // Moved delay into transition
+                  className="bg-gray-900/90 backdrop-blur-md rounded-lg p-4 border border-purple-700 shadow-2xl shadow-purple-600/30 text-center"
+                >
+                  <h4 className="text-purple-400 font-semibold mb-2">Simulations/Second</h4>
+                  <p className="text-2xl font-bold text-white">169,230</p>
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.4 }} // Moved delay into transition
+                  className="bg-gray-900/90 backdrop-blur-md rounded-lg p-4 border border-purple-700 shadow-2xl shadow-purple-600/30 text-center"
+                >
+                  <h4 className="text-purple-400 font-semibold mb-2">Total Simulations</h4>
+                  <p className="text-2xl font-bold text-white">23,169,206</p>
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.6 }} // Moved delay into transition
+                  className="bg-gray-900/90 backdrop-blur-md rounded-lg p-4 border border-purple-700 shadow-2xl shadow-purple-600/30 text-center"
+                >
+                  <h4 className="text-purple-400 font-semibold mb-2">Total Coverage</h4>
+                  <p className="text-2xl font-bold text-white">42.92%</p>
+                </motion.div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
 
       {/* Features Section */}
       <section className="py-20 relative overflow-hidden bg-black">
