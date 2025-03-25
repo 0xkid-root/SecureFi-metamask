@@ -7,7 +7,7 @@ export type ChainKey =
   | 'electroneumMainnet'
   | 'electroneumTestnet'
   // | 'eduChainMainnet'
-  // | 'eduChainTestnet'
+  | 'eduChainTestnet'
   // | 'apothemMainnet'
   | 'apothemTestnet';
 
@@ -67,23 +67,23 @@ export const electroneumTestnet = {
 //   iconPath: '/chains/educhain.png',
 // } as const;
 
-// export const eduChainTestnet = {
-//   id: 256, // 0x100; placeholder
-//   name: 'EDU Chain Testnet',
-//   nativeCurrency: {
-//     name: 'EduCoin',
-//     symbol: 'EDU',
-//     decimals: 18,
-//   },
-//   rpcUrls: {
-//     default: { http: ['https://rpc.educhain-testnet.org'] }, // Placeholder
-//     public: { http: ['https://rpc.educhain-testnet.org'] },
-//   },
-//   blockExplorers: {
-//     default: { name: 'EDU Chain Testnet Explorer', url: 'https://explorer.educhain-testnet.org' } }, // Placeholder
-//   documentationUrl: 'https://docs.educhain.org', // Placeholder
-//   iconPath: '/chains/educhain.png',
-// } as const;
+export const eduChainTestnet = {
+  id: 256, // 0x100; placeholder
+  name: 'EDU Chain Testnet',
+  nativeCurrency: {
+    name: 'EduCoin',
+    symbol: 'EDU',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: { http: ['wss://open-campus-codex-sepolia.drpc.org'] }, // Placeholder
+    public: { http: ['wss://open-campus-codex-sepolia.drpc.org'] },
+  },
+  blockExplorers: {
+    default: { name: 'EDU Chain Testnet Explorer', url: 'https://edu-chain-testnet.blockscout.com/' } }, // Placeholder
+  documentationUrl: 'https://docs.educhain.org', // Placeholder
+  iconPath: '/chains/educhain.png',
+} as const;
 
 // export const apothemMainnet = {
 //   id: 50, // 0x32; XDC Network Mainnet
@@ -126,7 +126,7 @@ export const CHAIN_CONFIG = {
   electroneumMainnet,
   electroneumTestnet,
   // eduChainMainnet,
-  // eduChainTestnet,
+  eduChainTestnet,
   // apothemMainnet,
   apothemTestnet,
 } as const;
@@ -137,7 +137,7 @@ export const config = createConfig({
     electroneumMainnet,
     electroneumTestnet,
     // eduChainMainnet,
-    // eduChainTestnet,
+    eduChainTestnet,
     // apothemMainnet,
     apothemTestnet,
   ],
@@ -148,7 +148,7 @@ export const config = createConfig({
     [electroneumMainnet.id]: http(),
     [electroneumTestnet.id]: http(),
     // [eduChainMainnet.id]: http(),
-    // [eduChainTestnet.id]: http(),
+    [eduChainTestnet.id]: http(),
     // [apothemMainnet.id]: http(),
     [apothemTestnet.id]: http(),
   },
