@@ -1,19 +1,27 @@
-// ContractBuilder.tsx
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mistral } from "@mistralai/mistralai";
 import { z } from "zod";
-import { ethers } from 'ethers';
 import {
   FileCode, Robot, CircleNotch, Copy, Check, Rocket, Link, Code,
   Lightning, Shield, ArrowRight, Lock, GasPump, Bug, Download
 } from 'phosphor-react';
 import { CONTRACT_TEMPLATES, ContractTemplate } from './templates';
-import { connectWallet, CHAIN_CONFIG } from '@/utils/web3';
+import { CHAIN_CONFIG } from '@/utils/web3-config';
 import React from 'react';
 import jsPDF from 'jspdf';
+import { 
+  useAccount, 
+  useConnect, 
+  useDisconnect, 
+  useConfig,
+  useDeployContract,
+  useSwitchChain,
+  useWaitForTransactionReceipt,
+} from 'wagmi';
+import { Abi } from 'viem';
 
 // Initialize Mistral client
 const mistralClient = new Mistral({
@@ -49,7 +57,7 @@ const TEMPLATE_PARAM_TYPES: Record<string, ParamType[]> = {
     { name: 'symbol', type: 'string' },
     { name: 'baseURI', type: 'string' }
   ],
-  'Custom Contract': [] // No default params
+  'Custom Contract': []
 };
 
 export default function ContractBuilder() {
@@ -63,10 +71,10 @@ export default function ContractBuilder() {
   const [contractParams, setContractParams] = useState<Record<string, string>>({});
 
   // Deployment state
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [deployedAddress, setDeployedAddress] = useState<string | null>(null);
-  const [walletConnected, setWalletConnected] = useState(false);
-  const [currentChain, setCurrentChain] = useState<keyof typeof CHAIN_CONFIG | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentStep, setCurrentStep] = useState<'idle' | 'compiling' | 'deploying'>('idle');
+  const [deployedAddress, setDeployedAddress] = useState<`0x${string}` | null>(null);
+  const [deploymentTxHash, setDeploymentTxHash] = useState<`0x${string}` | undefined>(undefined);
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
 
   // Advanced analysis state
@@ -75,52 +83,71 @@ export default function ContractBuilder() {
   const [vulnerabilities, setVulnerabilities] = useState<string[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // Hydration-safe state for wallet connection
+  const [isClientConnected, setIsClientConnected] = useState<boolean | null>(null);
+
   const displayedCode = generatedCode || manualCode;
 
-  // Network detection
-  const detectCurrentNetwork = async (): Promise<keyof typeof CHAIN_CONFIG | null> => {
-    try {
-      if (!window.ethereum) return null;
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const network = await provider.getNetwork();
-      const chainId = '0x' + network.chainId.toString(16);
-      
-      for (const [key, config] of Object.entries(CHAIN_CONFIG)) {
-        if (chainId.toLowerCase() === config.chainId.toLowerCase()) {
-          setCurrentChain(key as keyof typeof CHAIN_CONFIG);
-          return key as keyof typeof CHAIN_CONFIG;
-        }
-      }
-      setCurrentChain(null);
-      return null;
-    } catch (err) {
-      console.error('Network detection error:', err);
-      setError('Failed to detect network');
-      return null;
-    }
-  };
+  // Wagmi hooks
+  const { address, isConnected, chain } = useAccount();
+  const { connect, connectors } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { chains } = useConfig();
+  const { switchChain } = useSwitchChain();
+  const { 
+    deployContract: deployContractWagmi, 
+    data: deployTxHash, 
+    isPending: isDeployingWagmi, 
+    error: deployContractError 
+  } = useDeployContract();
+  const { data: receipt, error: receiptError } = useWaitForTransactionReceipt({
+    hash: deploymentTxHash,
+  });
 
-  // Wallet connection handling
+  // Sync isClientConnected with isConnected after hydration
   useEffect(() => {
-    const checkWallet = async () => {
-      if (window.ethereum) {
-        const accounts = await window.ethereum.request({ method: 'eth_accounts' }) as string[];
-        if (accounts.length > 0) {
-          setWalletConnected(true);
-          await detectCurrentNetwork();
-        }
-      }
-    };
-    checkWallet();
+    setIsClientConnected(isConnected);
+  }, [isConnected]);
 
-    if (window.ethereum) {
-      window.ethereum.on('accountsChanged', (accounts: string[]) => {
-        setWalletConnected(accounts.length > 0);
-        detectCurrentNetwork();
-      });
-      window.ethereum.on('chainChanged', detectCurrentNetwork);
+  // Reset deployment-related states when the chain changes
+  useEffect(() => {
+    if (chain?.id) {
+      console.log('Chain changed to:', chain.id, chain.name);
+      setDeployedAddress(null);
+      setDeploymentTxHash(undefined);
+      setDeploymentError(null);
+      setIsProcessing(false);
+      setCurrentStep('idle');
     }
-  }, []);
+  }, [chain?.id]);
+
+  // Memoized compile function
+  const compileContract = useCallback(async () => {
+    if (!displayedCode) {
+      console.log('No code to compile');
+      return { success: false, abi: [], bytecode: '0x' as `0x${string}` };
+    }
+    setCurrentStep('compiling');
+    try {
+      console.log('Compiling contract...');
+      const compileResponse = await fetch('/api/compile-contract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceCode: displayedCode })
+      });
+      if (!compileResponse.ok) {
+        const errorData = await compileResponse.json();
+        throw new Error(errorData.error || 'Compilation failed');
+      }
+      const { abi, bytecode } = await compileResponse.json();
+      console.log('Compilation successful:', { abi, bytecode });
+      return { success: true, abi, bytecode: bytecode as `0x${string}` };
+    } catch (error) {
+      console.error('Compilation error:', error);
+      setError(error instanceof Error ? error.message : 'Contract compilation failed');
+      return { success: false, abi: [], bytecode: '0x' as `0x${string}` };
+    }
+  }, [displayedCode]);
 
   // Template selection effect
   useEffect(() => {
@@ -129,6 +156,38 @@ export default function ContractBuilder() {
       setGeneratedCode(selectedTemplate.baseCode);
     }
   }, [selectedTemplate]);
+
+  // Update deploymentTxHash when deployTxHash changes
+  useEffect(() => {
+    if (deployTxHash) {
+      console.log('Transaction submitted, waiting for confirmation:', deployTxHash);
+      setDeploymentTxHash(deployTxHash);
+    }
+  }, [deployTxHash]);
+
+  // Handle deployment result when receipt or receiptError is available
+  useEffect(() => {
+    if (receipt?.contractAddress) {
+      console.log('Contract deployed at address:', receipt.contractAddress);
+      setDeployedAddress(receipt.contractAddress);
+      setIsProcessing(false); // Stop loading only after result is provided
+      setCurrentStep('idle');
+    } else if (receiptError) {
+      console.error('Transaction receipt error:', receiptError);
+      setDeploymentError(receiptError.message || 'Failed to confirm transaction');
+      setIsProcessing(false); // Stop loading only after error is set
+      setCurrentStep('idle');
+    }
+  }, [receipt, receiptError]);
+
+  // Handle deployContractError (e.g., user rejects transaction)
+  useEffect(() => {
+    if (deployContractError) {
+      console.error('Deploy contract error:', deployContractError);
+      setDeploymentError(deployContractError.message || 'Deployment failed');
+      // Do NOT reset isProcessing here; wait for receipt or receiptError
+    }
+  }, [deployContractError]);
 
   // Generate enhanced contract
   const generateContract = async () => {
@@ -150,14 +209,14 @@ export default function ContractBuilder() {
               - Vulnerability assessment
               Return a JSON object with the following structure:
               {
-                "code": "string", // The generated Solidity code
-                "features": ["string"], // Array of feature descriptions
-                "securityNotes": ["string"], // Array of security notes
-                "gasAnalysis": { // Optional gas analysis object
+                "code": "string",
+                "features": ["string"],
+                "securityNotes": ["string"],
+                "gasAnalysis": {
                   "estimatedDeploymentCost": number,
                   "functionCosts": { "functionName": number }
                 },
-                "potentialVulnerabilities": ["string"] // Optional array of vulnerabilities
+                "potentialVulnerabilities": ["string"]
               }`
           },
           {
@@ -173,22 +232,16 @@ export default function ContractBuilder() {
         maxTokens: 4096
       });
 
-      // Log the raw response for debugging
-      console.log("Mistral API Response:", response.choices?.[0]?.message?.content);
-
       const parsedResponse = JSON.parse(response.choices?.[0]?.message?.content as string || '{}');
-
-      // Validate the response with Zod
       const validated = ContractSchema.parse(parsedResponse);
 
       setGeneratedCode(validated.code);
       setSecurityNotes(validated.securityNotes || []);
       setGasAnalysis(validated.gasAnalysis || null);
       setVulnerabilities(validated.potentialVulnerabilities || []);
-    } catch (err) {
-      console.error('Generation error:', err);
-      if (err instanceof z.ZodError) {
-        setError(`Validation failed: ${err.message}`);
+    } catch (_) {
+      if (_ instanceof z.ZodError) {
+        setError(`Validation failed: ${_.message}`);
       } else {
         setError('Failed to generate contract');
       }
@@ -220,65 +273,117 @@ export default function ContractBuilder() {
       
       const analysis = response.choices?.[0]?.message?.content as string || '';
       setVulnerabilities(analysis.split('\n').filter((line: string) => line.trim()));
-    } catch (err) {
+    } catch (_) {
       setError('Security analysis failed');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  // Deploy contract
-  const deployContract = async () => {
-    if (!displayedCode || !walletConnected) return;
+  // Deploy contract with timeout
+  const handleDeployContract = async () => {
+    console.log('Attempting to deploy contract...');
 
-    setIsDeploying(true);
+    // Start the processing state
+    setIsProcessing(true);
     setDeploymentError(null);
+    setDeployedAddress(null); // Reset previous deployment address
+    setDeploymentTxHash(undefined); // Reset previous transaction hash
+    setCurrentStep('compiling');
+
+    // Step 1: Compile the contract
+    if (!displayedCode) {
+      setDeploymentError('Cannot deploy: No contract code provided.');
+      setIsProcessing(false);
+      setCurrentStep('idle');
+      return;
+    }
+
+    const compilationResult = await compileContract();
+    if (!compilationResult.success) {
+      setDeploymentError('Cannot deploy: Compilation failed. Check the console for details.');
+      setIsProcessing(false);
+      setCurrentStep('idle');
+      return;
+    }
+
+    const { abi: compiledAbi, bytecode: compiledBytecode } = compilationResult;
+
+    // Step 2: Check preconditions for deployment using the compiled results
+    console.log('Preconditions:', {
+      displayedCode: !!displayedCode,
+      isClientConnected: !!isClientConnected,
+      deployContractWagmi: !!deployContractWagmi,
+      abiLength: compiledAbi.length,
+      bytecode: compiledBytecode !== '0x',
+    });
+
+    if (!displayedCode || !isClientConnected || !deployContractWagmi || !compiledAbi.length || !compiledBytecode || compiledBytecode === '0x') {
+      console.log('Deployment aborted due to unmet preconditions');
+      setDeploymentError('Cannot deploy: Missing code, ABI, or bytecode. Ensure the contract is compiled successfully.');
+      setIsProcessing(false);
+      setCurrentStep('idle');
+      return;
+    }
+
+    // Step 3: Proceed with deployment
+    setCurrentStep('deploying');
+
+    // Add a timeout for the entire deployment process (e.g., 2 minutes)
+    const DEPLOYMENT_TIMEOUT = 120_000; // 2 minutes in milliseconds
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Deployment timed out. Please try again.'));
+      }, DEPLOYMENT_TIMEOUT);
+    });
 
     try {
-      const { signer } = await connectWallet();
-      const chain = await detectCurrentNetwork();
-      if (!chain || (chain !== 'electroneumMainnet' && chain !== 'electroneumTestnet')) {
-        throw new Error('Switch to Electroneum Network');
+      const currentChainId = chain?.id;
+      const supportedChainIds = Object.values(CHAIN_CONFIG).map(chain => chain.id) as (51 | 5201420 | 656476 | 44787)[];
+      console.log('Current Chain ID:', currentChainId);
+      console.log('Supported Chain IDs:', supportedChainIds);
+
+      if (!currentChainId || !supportedChainIds.includes(currentChainId)) {
+        const firstSupportedChainId = supportedChainIds[0];
+        console.log('Switching to chain ID:', firstSupportedChainId);
+        if (switchChain) {
+          await switchChain({ chainId: firstSupportedChainId });
+        }
+        throw new Error('Please switch to a supported network');
       }
 
-      const compileResponse = await fetch('/api/compile-contract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceCode: displayedCode })
-      });
-
-      if (!compileResponse.ok) throw new Error('Compilation failed');
-      const { abi, bytecode } = await compileResponse.json();
-
-      const factory = new ethers.ContractFactory(abi, bytecode, signer);
-
-      // Process constructor arguments based on template parameter types
-      const paramTypes = selectedTemplate ? TEMPLATE_PARAM_TYPES[selectedTemplate.name] || [] : [];
       const args = Object.entries(contractParams).map(([key, val]) => {
+        const paramTypes = selectedTemplate ? TEMPLATE_PARAM_TYPES[selectedTemplate.name] || [] : [];
         const param = paramTypes.find(p => p.name === key);
-        if (!param) return val; // Fallback to raw value if type not found
+        if (!param) return val;
 
         switch (param.type) {
-          case 'string':
-            return val; // Pass strings as-is
-          case 'uint256':
-            return ethers.parseUnits(val, 18); // Parse numbers with 18 decimals
-          case 'address':
-            if (!ethers.isAddress(val)) throw new Error(`Invalid address: ${val}`);
-            return val;
-          default:
-            return val;
+          case 'string': return val;
+          case 'uint256': return BigInt(val) * BigInt(10**18);
+          case 'address': return val as `0x${string}`;
+          default: return val;
         }
       });
 
-      const contract = await factory.deploy(...args);
-      const receipt = await contract.deploymentTransaction()?.wait();
-      
-      setDeployedAddress(receipt?.contractAddress || '');
-    } catch (err: unknown) {
-      setDeploymentError((err as Error).message);
-    } finally {
-      setIsDeploying(false);
+      console.log('Deploying contract with args:', args);
+      console.log('ABI:', compiledAbi);
+      console.log('Bytecode:', compiledBytecode);
+
+      // Race the deployment promise against the timeout
+      await Promise.race([
+        deployContractWagmi({
+          abi: compiledAbi,
+          bytecode: compiledBytecode,
+          args,
+        }),
+        timeoutPromise,
+      ]);
+
+      // Loading state will be reset by the useEffect for receipt/receiptError
+    } catch (error) {
+      console.error('Deployment error:', error);
+      setDeploymentError(error instanceof Error ? error.message : 'Deployment failed');
+      // Do NOT reset isProcessing here; wait for receipt or receiptError
     }
   };
 
@@ -347,6 +452,15 @@ export default function ContractBuilder() {
     }
 
     doc.save('Contract_Analysis_Report.pdf');
+  };
+
+  // Connect wallet handler
+  const connectWallet = async () => {
+    try {
+      await connect({ connector: connectors[0] });
+    } catch (error) {
+      setError('Failed to connect wallet');
+    }
   };
 
   return (
@@ -527,7 +641,9 @@ export default function ContractBuilder() {
               <h2 className="flex items-center gap-2 text-lg font-mono mb-4 text-[#a855f7]">
                 <Rocket className="text-[#a855f7]" /> Deployment
               </h2>
-              {!walletConnected ? (
+              {isClientConnected === null ? (
+                <div className="text-sm text-[#c084fc]">Loading wallet status...</div>
+              ) : !isClientConnected ? (
                 <button
                   onClick={connectWallet}
                   className="w-full p-3 bg-[#9333ea] rounded-lg flex items-center justify-center gap-2 hover:bg-[#a855f7] transition-all duration-300"
@@ -537,29 +653,44 @@ export default function ContractBuilder() {
               ) : (
                 <>
                   <div className="mb-4 text-sm text-[#c084fc]">
-                    Network: {currentChain ? CHAIN_CONFIG[currentChain].chainName : 'Not connected'}
+                    Network: {chain?.name || 'Unknown'}
+                    {chains.length > 0 && <span className="hidden">{chains[0].name}</span>}
+                  </div>
+                  <div className="mb-4 text-sm text-[#c084fc]">
+                    Address: {address?.slice(0, 6)}...{address?.slice(-4)}
                   </div>
                   <button
-                    onClick={deployContract}
-                    disabled={isDeploying || !displayedCode}
+                    onClick={handleDeployContract}
+                    disabled={isProcessing || !displayedCode}
                     className="w-full p-3 bg-[#9333ea] rounded-lg flex items-center justify-center gap-2 disabled:bg-[#2d0047] hover:bg-[#a855f7] transition-all duration-300"
                   >
-                    {isDeploying ? <CircleNotch className="animate-spin" /> : <Rocket />}
-                    {isDeploying ? 'Deploying...' : 'Deploy Contract'}
+                    {isProcessing ? <CircleNotch className="animate-spin" /> : <Rocket />}
+                    {isProcessing ? (currentStep === 'compiling' ? 'Compiling...' : 'Deploying...') : 'Deploy Contract'}
                   </button>
                   {deployedAddress && (
                     <a
-                      href={currentChain ? `${CHAIN_CONFIG[currentChain].blockExplorerUrls[0]}/address/${deployedAddress}` : '#'}
+                      href={chain?.blockExplorers?.default.url ? `${chain.blockExplorers.default.url}/address/${deployedAddress}` : '#'}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 block text-[#a855f7] text-sm flex items-center gap-2 hover:text-[#d8b4fe] transition-all duration-200"
+                      className="mt-2 text-[#a855f7] text-sm flex items-center gap-2 hover:text-[#d8b4fe] transition-all duration-200"
                     >
-                      <Link /> View on Explorer: {deployedAddress}
+                      <Link /> View on Explorer: {deployedAddress.slice(0, 6)}...{deployedAddress.slice(-4)}
                     </a>
                   )}
                   {deploymentError && (
                     <div className="mt-2 text-[#c084fc] text-sm">{deploymentError}</div>
                   )}
+                  {deployContractError && (
+                    <div className="mt-2 text-[#c084fc] text-sm">
+                      Deploy Contract Error: {deployContractError.message}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => disconnect()}
+                    className="w-full mt-2 p-2 bg-[#9333ea]/30 rounded flex items-center justify-center gap-2 hover:bg-[#9333ea]/50 transition-all duration-300"
+                  >
+                    Disconnect
+                  </button>
                 </>
               )}
             </div>

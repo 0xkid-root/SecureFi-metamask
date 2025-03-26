@@ -2,7 +2,7 @@ export const CONTRACT_ADDRESSES = {
 	electroneumTestnet: "0x11f932d3fa84Daa7FBb924ec67f26c03F9B997C7",
 	apothemTestnet: "0x0552d01E1Dc6F4a9779675c97307DFb148F5B0Cf",
 	eduChainTestnet: "0x164A728f30de2E23c467C53C036D46efd2867C94",
-	celoAlfajoresTestnet: "0x164A728f30de2E23c467C53C036D46efd2867C94", // Verify if this should differ
+	celoAlfajoresTestnet: "0x164A728f30de2E23c467C53C036D46efd2867C94", 
   } as const;
 
 // celo 0x164A728f30de2E23c467C53C036D46efd2867C94
