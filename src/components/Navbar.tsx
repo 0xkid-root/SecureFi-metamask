@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from 'wagmi';
 import { SignOut, List, X, CaretDown, CaretUp, Lightning, GithubLogo, TwitterLogo } from 'phosphor-react';
-import Logo from '/public/logo.svg';
+import Logo from '/public/chainproof.png';
 import { CHAIN_CONFIG } from '@/utils/web3-config';
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
@@ -75,7 +75,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                   <div className="absolute inset-0 bg-purple-600/20 rounded-full blur-[10px]"></div>
                   <Image src={Logo} alt="SecureFi Logo" width={34} height={34} className="relative z-10" />
                 </div>
-                <span className="text-xl font-mono font-bold text-white">SecureFI</span>
+                <span className="text-xl font-mono font-bold text-white">ProofChain</span>
               </Link>
               <div className="hidden md:flex items-center space-x-1">
                 <NavLink href="/contract-builder">Contract-builder</NavLink>
@@ -103,8 +103,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
               <div>
                 <div className="flex items-center mb-4">
-                  <Image src="/logo.svg" alt="SecureFi Logo" width={32} height={32} />
-                  <span className="ml-2 text-xl font-bold text-white">SecureFi</span>
+                  <Image src="/chainproof.png" alt="SecureFi Logo" width={32} height={32} />
+                  <span className="ml-2 text-xl font-bold text-white">ProofChain</span>
                 </div>
               </div>
             </div>
@@ -131,7 +131,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
                 />
               </div>
               <span className="text-xl font-mono font-bold text-white group-hover:text-purple-400 transition-colors duration-200">
-                SecureFI
+                ProofChain
               </span>
             </Link>
 
@@ -324,8 +324,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             <div>
               <div className="flex items-center mb-4">
-                <Image src="/logo.svg" alt="SecureFi Logo" width={32} height={32} />
-                <span className="ml-2 text-xl font-bold text-white">SecureFi</span>
+                <Image src="/chainproof.png" alt="SecureFi Logo" width={32} height={32} />
+                <span className="ml-2 text-xl font-bold text-white">ProofChain</span>
               </div>
               <p className="text-purple-300 mb-4">
                 Ensure the security of your smart contracts with AI-driven audits and immutable on-chain verification.

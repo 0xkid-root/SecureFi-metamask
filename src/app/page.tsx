@@ -184,7 +184,7 @@ export default function Home() {
             className="text-center mb-12"
           >
             <div className="inline-block mb-3 px-4 py-1 rounded-full bg-purple-900/50 border border-purple-800">
-              <span className="text-purple-400 text-sm font-semibold">SecureFi</span>
+              <span className="text-purple-400 text-sm font-semibold">ProofChain</span>
             </div>
           </motion.div>
 
@@ -197,10 +197,10 @@ export default function Home() {
             >
               <h3 className="text-3xl sm:text-4xl font-mono font-bold mb-6 text-white">
                 Audit, Build, and Test Smart Contracts<br />
-                with <span className="text-purple-400">SecureFi</span>
+                with <span className="text-purple-400">ProofChain</span>
               </h3>
               <p className="text-gray-100 text-lg mb-8 max-w-xl mx-auto leading-relaxed">
-                Use SecureFi’s AI-driven tools to audit, build, and test your smart contracts with precision, ensuring security and efficiency across any blockchain.
+                Use ProofChain’s AI-driven tools to audit, build, and test your smart contracts with precision, ensuring security and efficiency across any blockchain.
               </p>
             </motion.div>
 
@@ -226,7 +226,7 @@ export default function Home() {
                 {!answer && !isLoading && (
                   <div className="bg-purple-950/50 p-4 rounded-lg">
                     <p className="text-gray-200">
-                      Ask me anything about the SecureFi!
+                      Ask me anything about the ProofChain!
                     </p>
                   </div>
                 )}
@@ -295,7 +295,7 @@ export default function Home() {
               <div className="mt-4 relative">
                 <input
                   type="text"
-                  placeholder="Ask anything about SecureFi"
+                  placeholder="Ask anything about ProofChain"
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleAskQuestion(question, setIsLoading, setAnswer, setQuestion)}
