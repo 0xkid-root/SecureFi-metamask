@@ -170,22 +170,21 @@ export default function ContractBuilder() {
     if (receipt?.contractAddress) {
       console.log('Contract deployed at address:', receipt.contractAddress);
       setDeployedAddress(receipt.contractAddress);
-      setIsProcessing(false); // Stop loading only after result is provided
+      setIsProcessing(false);
       setCurrentStep('idle');
     } else if (receiptError) {
       console.error('Transaction receipt error:', receiptError);
       setDeploymentError(receiptError.message || 'Failed to confirm transaction');
-      setIsProcessing(false); // Stop loading only after error is set
+      setIsProcessing(false);
       setCurrentStep('idle');
     }
   }, [receipt, receiptError]);
 
-  // Handle deployContractError (e.g., user rejects transaction)
+  // Handle deployContractError (e.g., user rejectsКаждый transaction)
   useEffect(() => {
     if (deployContractError) {
       console.error('Deploy contract error:', deployContractError);
       setDeploymentError(deployContractError.message || 'Deployment failed');
-      // Do NOT reset isProcessing here; wait for receipt or receiptError
     }
   }, [deployContractError]);
 
@@ -284,14 +283,12 @@ export default function ContractBuilder() {
   const handleDeployContract = async () => {
     console.log('Attempting to deploy contract...');
 
-    // Start the processing state
     setIsProcessing(true);
     setDeploymentError(null);
-    setDeployedAddress(null); // Reset previous deployment address
-    setDeploymentTxHash(undefined); // Reset previous transaction hash
+    setDeployedAddress(null);
+    setDeploymentTxHash(undefined);
     setCurrentStep('compiling');
 
-    // Step 1: Compile the contract
     if (!displayedCode) {
       setDeploymentError('Cannot deploy: No contract code provided.');
       setIsProcessing(false);
@@ -309,7 +306,6 @@ export default function ContractBuilder() {
 
     const { abi: compiledAbi, bytecode: compiledBytecode } = compilationResult;
 
-    // Step 2: Check preconditions for deployment using the compiled results
     console.log('Preconditions:', {
       displayedCode: !!displayedCode,
       isClientConnected: !!isClientConnected,
@@ -326,24 +322,22 @@ export default function ContractBuilder() {
       return;
     }
 
-    // Step 3: Proceed with deployment
     setCurrentStep('deploying');
 
-    // Add a timeout for the entire deployment process (e.g., 2 minutes)
-    const DEPLOYMENT_TIMEOUT = 120_000; // 2 minutes in milliseconds
+    const DEPLOYMENT_TIMEOUT = 120_000;
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error('Deployment timed out. Please try again.'));
-      }, DEPLOYMENT_TIMEOUT);
+      setTimeout(() => reject(new Error('Deployment timed out. Please try again.')), DEPLOYMENT_TIMEOUT);
     });
 
     try {
       const currentChainId = chain?.id;
       const supportedChainIds = Object.values(CHAIN_CONFIG).map(chain => chain.id) as (51 | 5201420 | 656476 | 44787)[];
+
       console.log('Current Chain ID:', currentChainId);
       console.log('Supported Chain IDs:', supportedChainIds);
 
-      if (!currentChainId || !supportedChainIds.includes(currentChainId)) {
+      // Fixed: Type assertion to match the union type
+      if (!currentChainId || !supportedChainIds.includes(currentChainId as 51 | 5201420 | 656476 | 44787)) {
         const firstSupportedChainId = supportedChainIds[0];
         console.log('Switching to chain ID:', firstSupportedChainId);
         if (switchChain) {
@@ -369,7 +363,6 @@ export default function ContractBuilder() {
       console.log('ABI:', compiledAbi);
       console.log('Bytecode:', compiledBytecode);
 
-      // Race the deployment promise against the timeout
       await Promise.race([
         deployContractWagmi({
           abi: compiledAbi,
@@ -378,12 +371,9 @@ export default function ContractBuilder() {
         }),
         timeoutPromise,
       ]);
-
-      // Loading state will be reset by the useEffect for receipt/receiptError
     } catch (error) {
       console.error('Deployment error:', error);
       setDeploymentError(error instanceof Error ? error.message : 'Deployment failed');
-      // Do NOT reset isProcessing here; wait for receipt or receiptError
     }
   };
 
